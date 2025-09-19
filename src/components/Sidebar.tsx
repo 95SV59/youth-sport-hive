@@ -16,7 +16,8 @@ import {
   LogOut,
   UserCheck,
   Shield,
-  Plus
+  Plus,
+  User
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -29,6 +30,7 @@ const Sidebar = () => {
     const baseItems = [
       { icon: Home, label: 'Dashboard', path: '/dashboard' },
       { icon: Calendar, label: 'Events', path: '/events' },
+      { icon: User, label: 'Profile', path: '/profile' },
       { icon: Trophy, label: 'Achievements', path: '/achievements' },
       { icon: MapPin, label: 'Community Map', path: '/community-map' },
       { icon: Star, label: 'Reviews', path: '/reviews' },
@@ -36,7 +38,7 @@ const Sidebar = () => {
     ];
 
     if (profile?.role === 'coach') {
-      baseItems.splice(2, 0, 
+      baseItems.splice(3, 0, 
         { icon: Plus, label: 'Create Event', path: '/create-event' },
         { icon: Users, label: 'My Events', path: '/my-events' }
       );
