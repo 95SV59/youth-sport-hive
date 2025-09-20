@@ -17,7 +17,8 @@ import {
   UserCheck,
   Shield,
   Plus,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -31,9 +32,6 @@ const Sidebar = () => {
       { icon: Home, label: 'Dashboard', path: '/dashboard' },
       { icon: Calendar, label: 'Events', path: '/events' },
       { icon: User, label: 'Profile', path: '/profile' },
-      { icon: Trophy, label: 'Achievements', path: '/achievements' },
-      { icon: MapPin, label: 'Community Map', path: '/community-map' },
-      { icon: Star, label: 'Reviews', path: '/reviews' },
       { icon: Bell, label: 'Notifications', path: '/notifications' },
     ];
 
@@ -46,12 +44,15 @@ const Sidebar = () => {
 
     if (profile?.role === 'admin') {
       baseItems.push(
-        { icon: Shield, label: 'Admin Panel', path: '/admin' },
-        { icon: UserCheck, label: 'Coach Verification', path: '/coach-verification' }
+        { icon: Shield, label: 'Admin Panel', path: '/admin' }
       );
     }
 
-    baseItems.push({ icon: Settings, label: 'Settings', path: '/settings' });
+    if (profile?.role === 'coach' || profile?.role === 'admin') {
+      baseItems.push(
+        { icon: BarChart3, label: 'Analytics', path: '/analytics' }
+      );
+    }
 
     return baseItems;
   };

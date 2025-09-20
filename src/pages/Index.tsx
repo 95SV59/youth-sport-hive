@@ -105,9 +105,9 @@ const Index = () => {
                 Start Your Journey
               </Button>
             </Link>
-            <Link to="/auth">
+            <Link to="/coach-application">
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                Join as Coach
+                Become a Coach
               </Button>
             </Link>
           </div>

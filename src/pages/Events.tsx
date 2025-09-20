@@ -238,13 +238,22 @@ const Events = () => {
                   <Badge variant="outline">
                     Ages {event.age_min}-{event.age_max}
                   </Badge>
-                  <Button 
-                    onClick={() => handleRegister(event.id)}
-                    disabled={event.current_participants >= event.max_participants}
-                    size="sm"
-                  >
-                    {event.current_participants >= event.max_participants ? 'Full' : 'Register'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.href = `/event/${event.id}`}
+                    >
+                      View Details
+                    </Button>
+                    <Button 
+                      onClick={() => handleRegister(event.id)}
+                      disabled={event.current_participants >= event.max_participants}
+                      size="sm"
+                    >
+                      {event.current_participants >= event.max_participants ? 'Full' : 'Register'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
