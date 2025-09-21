@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecommendations } from '@/hooks/useRecommendations';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Trophy, Users, Target, TrendingUp, Clock } from 'lucide-react';
+import { Calendar, Trophy, Users, Target, TrendingUp, Clock, Lightbulb, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import RecommendationCard from '@/components/RecommendationCard';
 import Layout from '@/components/Layout';
 
 const Dashboard = () => {
   const { profile } = useAuth();
+  const { recommendations } = useRecommendations();
   const [stats, setStats] = useState<any>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
@@ -188,6 +191,52 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
+        {/* AI Recommendations Section */}
+        {recommendations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <span>AI Sport Recommendations</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recommendations.slice(0, 2).map((recommendation) => (
+                  <div key={recommendation.id} className="p-4 bg-primary/5 rounded-lg border">
+                    <h4 className="font-semibold text-primary">
+                      {recommendation.recommended_sport.split('_').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ')}
+                    </h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {recommendation.reasoning.substring(0, 100)}...
+                    </p>
+                    <div className="flex justify-between items-center mt-3">
+                      <Badge variant="outline">
+                        {Math.round(recommendation.confidence_score * 100)}% match
+                      </Badge>
+                      <Link to="/recommendations">
+                        <Button size="sm" variant="outline">
+                          View Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-center mt-4">
+                <Link to="/recommendations">
+                  <Button variant="outline">
+                    <Lightbulb className="h-4 w-4 mr-2" />
+                    View All Recommendations
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upcoming Events */}
           <Card>
@@ -243,7 +292,7 @@ const Dashboard = () => {
                 <Trophy className="h-5 w-5" />
                 <span>Recent Achievements</span>
               </CardTitle>
-              <Link to="/achievements">
+              <Link to="/challenges">
                 <Button variant="outline" size="sm">View All</Button>
               </Link>
             </CardHeader>

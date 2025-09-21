@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          created_at: string
+          id: string
+          is_super_admin: boolean | null
+          permissions: string[] | null
+          profile_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_super_admin?: boolean | null
+          permissions?: string[] | null
+          profile_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_super_admin?: boolean | null
+          permissions?: string[] | null
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_users_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coaches: {
         Row: {
           certifications: string[] | null
@@ -72,6 +110,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_challenges: {
+        Row: {
+          active_date: string
+          challenge_type: string
+          created_at: string
+          description: string
+          difficulty_level:
+            | Database["public"]["Enums"]["difficulty_level"]
+            | null
+          expires_at: string
+          id: string
+          is_active: boolean | null
+          points_reward: number
+          sport_category: Database["public"]["Enums"]["sport_category"] | null
+          target_value: number | null
+          title: string
+        }
+        Insert: {
+          active_date: string
+          challenge_type: string
+          created_at?: string
+          description: string
+          difficulty_level?:
+            | Database["public"]["Enums"]["difficulty_level"]
+            | null
+          expires_at: string
+          id?: string
+          is_active?: boolean | null
+          points_reward?: number
+          sport_category?: Database["public"]["Enums"]["sport_category"] | null
+          target_value?: number | null
+          title: string
+        }
+        Update: {
+          active_date?: string
+          challenge_type?: string
+          created_at?: string
+          description?: string
+          difficulty_level?:
+            | Database["public"]["Enums"]["difficulty_level"]
+            | null
+          expires_at?: string
+          id?: string
+          is_active?: boolean | null
+          points_reward?: number
+          sport_category?: Database["public"]["Enums"]["sport_category"] | null
+          target_value?: number | null
+          title?: string
+        }
+        Relationships: []
       }
       event_registrations: {
         Row: {
@@ -263,6 +352,56 @@ export type Database = {
           },
         ]
       }
+      leaderboards: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          points: number
+          profile_id: string
+          rank: number
+          sport_category: Database["public"]["Enums"]["sport_category"] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          points?: number
+          profile_id: string
+          rank: number
+          sport_category?: Database["public"]["Enums"]["sport_category"] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          points?: number
+          profile_id?: string
+          rank?: number
+          sport_category?: Database["public"]["Enums"]["sport_category"] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboards_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           action_url: string | null
@@ -298,53 +437,98 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activity_preferences: string[] | null
+          availability_schedule: Json | null
           avatar_url: string | null
           bio: string | null
+          budget_range_max: number | null
+          budget_range_min: number | null
           created_at: string
           date_of_birth: string | null
           email: string
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           first_name: string
+          fitness_goals: string[] | null
           id: string
           last_name: string
           location: string | null
+          medical_conditions: string[] | null
+          parent_guardian_name: string | null
+          parent_guardian_phone: string | null
           phone: string | null
+          preferred_locations: string[] | null
+          preferred_sports:
+            | Database["public"]["Enums"]["sport_category"][]
+            | null
           role: Database["public"]["Enums"]["user_role"]
+          school_institution: string | null
+          skill_level: string | null
+          timezone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          activity_preferences?: string[] | null
+          availability_schedule?: Json | null
           avatar_url?: string | null
           bio?: string | null
+          budget_range_max?: number | null
+          budget_range_min?: number | null
           created_at?: string
           date_of_birth?: string | null
           email: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name: string
+          fitness_goals?: string[] | null
           id?: string
           last_name: string
           location?: string | null
+          medical_conditions?: string[] | null
+          parent_guardian_name?: string | null
+          parent_guardian_phone?: string | null
           phone?: string | null
+          preferred_locations?: string[] | null
+          preferred_sports?:
+            | Database["public"]["Enums"]["sport_category"][]
+            | null
           role?: Database["public"]["Enums"]["user_role"]
+          school_institution?: string | null
+          skill_level?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          activity_preferences?: string[] | null
+          availability_schedule?: Json | null
           avatar_url?: string | null
           bio?: string | null
+          budget_range_max?: number | null
+          budget_range_min?: number | null
           created_at?: string
           date_of_birth?: string | null
           email?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name?: string
+          fitness_goals?: string[] | null
           id?: string
           last_name?: string
           location?: string | null
+          medical_conditions?: string[] | null
+          parent_guardian_name?: string | null
+          parent_guardian_phone?: string | null
           phone?: string | null
+          preferred_locations?: string[] | null
+          preferred_sports?:
+            | Database["public"]["Enums"]["sport_category"][]
+            | null
           role?: Database["public"]["Enums"]["user_role"]
+          school_institution?: string | null
+          skill_level?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -400,36 +584,54 @@ export type Database = {
       }
       recommendations: {
         Row: {
+          algorithm_version: string | null
           confidence_score: number | null
           created_at: string
+          effectiveness_rating: number | null
+          follow_up_date: string | null
           id: string
+          input_factors: Json | null
           profile_id: string
           reasoning: string | null
+          recommendation_score: number | null
           recommended_sport: Database["public"]["Enums"]["sport_category"]
           user_feedback: string | null
           user_id: string
+          user_interaction_data: Json | null
           was_accepted: boolean | null
         }
         Insert: {
+          algorithm_version?: string | null
           confidence_score?: number | null
           created_at?: string
+          effectiveness_rating?: number | null
+          follow_up_date?: string | null
           id?: string
+          input_factors?: Json | null
           profile_id: string
           reasoning?: string | null
+          recommendation_score?: number | null
           recommended_sport: Database["public"]["Enums"]["sport_category"]
           user_feedback?: string | null
           user_id: string
+          user_interaction_data?: Json | null
           was_accepted?: boolean | null
         }
         Update: {
+          algorithm_version?: string | null
           confidence_score?: number | null
           created_at?: string
+          effectiveness_rating?: number | null
+          follow_up_date?: string | null
           id?: string
+          input_factors?: Json | null
           profile_id?: string
           reasoning?: string | null
+          recommendation_score?: number | null
           recommended_sport?: Database["public"]["Enums"]["sport_category"]
           user_feedback?: string | null
           user_id?: string
+          user_interaction_data?: Json | null
           was_accepted?: boolean | null
         }
         Relationships: [
@@ -516,6 +718,60 @@ export type Database = {
           },
           {
             foreignKeyName: "user_achievements_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_challenge_progress: {
+        Row: {
+          challenge_id: string
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string
+          current_progress: number | null
+          id: string
+          points_earned: number | null
+          profile_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          current_progress?: number | null
+          id?: string
+          points_earned?: number | null
+          profile_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          current_progress?: number | null
+          id?: string
+          points_earned?: number | null
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_challenge_progress_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "daily_challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_challenge_progress_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

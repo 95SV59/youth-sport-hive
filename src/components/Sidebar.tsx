@@ -18,7 +18,8 @@ import {
   Shield,
   Plus,
   User,
-  BarChart3
+  BarChart3,
+  Lightbulb
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -31,6 +32,8 @@ const Sidebar = () => {
     const baseItems = [
       { icon: Home, label: 'Dashboard', path: '/dashboard' },
       { icon: Calendar, label: 'Events', path: '/events' },
+      { icon: Lightbulb, label: 'Recommendations', path: '/recommendations' },
+      { icon: Trophy, label: 'Challenges', path: '/challenges' },
       { icon: User, label: 'Profile', path: '/profile' },
       { icon: Bell, label: 'Notifications', path: '/notifications' },
     ];
