@@ -15,7 +15,7 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [role, setRole] = useState<'student' | 'parent' | 'coach'>('student');
+  const [role, setRole] = useState<'student' | 'parent' | 'coach' | 'admin'>('student');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [location, setLocation] = useState('');
@@ -157,6 +157,7 @@ const Auth = () => {
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="parent">Parent</SelectItem>
                         <SelectItem value="coach">Coach</SelectItem>
+                        <SelectItem value="admin">Administrator</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

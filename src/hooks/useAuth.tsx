@@ -29,12 +29,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
-      setProfile(data);
+      
+      if (data) {
+        setProfile(data);
+        
+        // Auto-create coach profile if user is a coach but doesn't have one
+        if (data.role === 'coach') {
+          const { data: coachData } = await supabase
+            .from('coaches')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+            
+          if (!coachData) {
+            await supabase.from('coaches').insert({
+              user_id: userId,
+              profile_id: data.id,
+              specializations: [],
+              experience_years: 0
+            });
+          }
+        }
+        
+        // Auto-create admin user if user is an admin but doesn't have one
+        if (data.role === 'admin') {
+          const { data: adminData } = await supabase
+            .from('admin_users')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+            
+          if (!adminData) {
+            await supabase.from('admin_users').insert({
+              user_id: userId,
+              profile_id: data.id,
+              permissions: ['read', 'write', 'admin']
+            });
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setProfile(null);
     }
   };
 

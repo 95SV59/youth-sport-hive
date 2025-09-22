@@ -88,8 +88,8 @@ serve(async (req) => {
     const userContext = {
       age: profile.date_of_birth ? 
         Math.floor((Date.now() - new Date(profile.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : 
-        null,
-      location: profile.location,
+        16, // Default age if not provided
+      location: profile.location || 'Not specified',
       preferredSports: profile.preferred_sports || [],
       skillLevel: profile.skill_level || 'beginner',
       activityPreferences: profile.activity_preferences || [],
@@ -101,7 +101,7 @@ serve(async (req) => {
       currentLevel: stats?.current_level || 1,
       totalPoints: stats?.total_points || 0,
       eventsAttended: stats?.events_attended || 0,
-      favoriteSport: stats?.favorite_sport,
+      favoriteSport: stats?.favorite_sport || 'none',
       eventHistory: eventHistory || []
     };
 
@@ -109,17 +109,18 @@ serve(async (req) => {
     You are an AI sports recommendation expert. Based on the following user profile, recommend personalized sports activities:
 
     User Profile:
-    - Age: ${userContext.age || 'Not specified'}
-    - Location: ${userContext.location || 'Not specified'}
+    - Age: ${userContext.age}
+    - Location: ${userContext.location}
     - Current Level: ${userContext.currentLevel}
     - Skill Level: ${userContext.skillLevel}
     - Events Attended: ${userContext.eventsAttended}
-    - Preferred Sports: ${userContext.preferredSports.join(', ') || 'None specified'}
+    - Preferred Sports: ${userContext.preferredSports.length > 0 ? userContext.preferredSports.join(', ') : 'None specified'}
     - Budget Range: $${userContext.budgetMin} - $${userContext.budgetMax}
-    - Fitness Goals: ${userContext.fitnessGoals.join(', ') || 'None specified'}
-    - Activity Preferences: ${userContext.activityPreferences.join(', ') || 'None specified'}
-    - Medical Considerations: ${userContext.medicalConditions.join(', ') || 'None'}
+    - Fitness Goals: ${userContext.fitnessGoals.length > 0 ? userContext.fitnessGoals.join(', ') : 'General fitness'}
+    - Activity Preferences: ${userContext.activityPreferences.length > 0 ? userContext.activityPreferences.join(', ') : 'Open to all activities'}
+    - Medical Considerations: ${userContext.medicalConditions.length > 0 ? userContext.medicalConditions.join(', ') : 'None'}
     - Past Event Types: ${userContext.eventHistory.map(e => e.events?.sport_category).filter(Boolean).join(', ') || 'None'}
+    - Favorite Sport: ${userContext.favoriteSport}
 
     Available sports categories: basketball, soccer, tennis, swimming, volleyball, baseball, track_field, martial_arts, gymnastics, other
 

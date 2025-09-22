@@ -32,21 +32,29 @@ export function useRecommendations() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Recommendation error:', error);
+        throw error;
+      }
 
-      setRecommendations(data.recommendations || []);
-      
-      if (!data.cached && data.recommendations?.length > 0) {
-        toast({
-          title: "New Recommendations Generated!",
-          description: "We've found some great sports for you to try.",
-        });
+      if (data && data.recommendations) {
+        setRecommendations(data.recommendations);
+        
+        if (!data.cached && data.recommendations?.length > 0) {
+          toast({
+            title: "New Recommendations Generated!",
+            description: "We've found some great sports for you to try.",
+          });
+        }
+      } else {
+        setRecommendations([]);
       }
     } catch (error) {
       console.error('Error fetching recommendations:', error);
+      setRecommendations([]);
       toast({
         title: "Error",
-        description: "Failed to generate recommendations. Please try again.",
+        description: "Failed to generate recommendations. Please complete your profile and try again.",
         variant: "destructive",
       });
     } finally {

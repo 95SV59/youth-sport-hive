@@ -77,10 +77,15 @@ const CreateEvent = () => {
         .from('coaches')
         .select('id')
         .eq('user_id', user?.id)
-        .single();
+        .maybeSingle();
 
-      if (coachError || !coachData) {
-        throw new Error('Coach profile not found. Please contact support.');
+      if (coachError) {
+        console.error('Coach query error:', coachError);
+        throw new Error('Error checking coach profile. Please try again.');
+      }
+
+      if (!coachData) {
+        throw new Error('Coach profile not found. Please contact support to verify your coach status.');
       }
 
       const { error } = await supabase
