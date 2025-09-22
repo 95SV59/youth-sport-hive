@@ -18,9 +18,18 @@ import {
 } from 'lucide-react';
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  let user = null;
+  let loading = false;
+  
+  try {
+    const auth = useAuth();
+    user = auth.user;
+    loading = auth.loading;
+  } catch {
+    // Not inside AuthProvider, which is fine for the landing page
+  }
 
-  // Redirect authenticated users to dashboard
+  // Only redirect if we're inside AuthProvider and have a user
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
   }
