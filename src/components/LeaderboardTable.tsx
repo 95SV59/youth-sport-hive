@@ -29,11 +29,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
-        return <Trophy className="h-5 w-5 text-yellow-500" />;
+        return <Trophy className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
       case 2:
-        return <Medal className="h-5 w-5 text-gray-400" />;
+        return <Medal className="h-5 w-5 text-gray-400 dark:text-gray-300" />;
       case 3:
-        return <Award className="h-5 w-5 text-orange-500" />;
+        return <Award className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
       default:
         return <span className="text-sm font-bold text-muted-foreground">#{rank}</span>;
     }
@@ -42,11 +42,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   const getRankBadgeColor = (rank: number) => {
     switch (rank) {
       case 1:
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-100 dark:border-yellow-700';
       case 2:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600';
       case 3:
-        return 'bg-orange-100 text-orange-800 border-orange-300';
+        return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-100 dark:border-orange-700';
       default:
         return 'bg-muted text-muted-foreground';
     }

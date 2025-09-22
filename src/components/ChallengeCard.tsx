@@ -35,10 +35,10 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({ challenge }) => {
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
-      case 'beginner': return 'bg-green-100 text-green-800';
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
-      case 'advanced': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'beginner': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100';
+      case 'advanced': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -83,7 +83,7 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({ challenge }) => {
               {challenge.difficulty_level}
             </Badge>
             {challenge.progress?.completed && (
-              <Badge className="bg-green-100 text-green-800">
+              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
                 <CheckCircle className="h-3 w-3 mr-1" />
                 Completed
               </Badge>
@@ -115,7 +115,7 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({ challenge }) => {
             </div>
             <Progress value={getProgressPercentage()} className="w-full" />
             {challenge.progress.completed && (
-              <p className="text-sm text-green-600 font-medium">
+              <p className="text-sm text-green-600 dark:text-green-400 font-medium">
                 🎉 Challenge completed! Earned {challenge.progress.points_earned} points
               </p>
             )}

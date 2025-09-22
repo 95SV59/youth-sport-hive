@@ -32,9 +32,9 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({
   };
 
   const getConfidenceColor = (score: number) => {
-    if (score >= 0.8) return 'text-green-600';
-    if (score >= 0.6) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 0.8) return 'text-green-600 dark:text-green-400';
+    if (score >= 0.6) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   const getConfidenceLabel = (score: number) => {
@@ -102,7 +102,7 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({
         <div className="flex space-x-3 pt-4">
           <Button 
             onClick={handleAccept}
-            className="flex-1 bg-green-600 hover:bg-green-700"
+            className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
           >
             <CheckCircle className="h-4 w-4 mr-2" />
             I'm Interested
