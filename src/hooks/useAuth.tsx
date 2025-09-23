@@ -25,11 +25,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+      );
+
+      const { data, error } = await Promise.race([
+        profilePromise,
+        timeoutPromise
+      ]) as any;
       
       if (error) throw error;
       
@@ -38,42 +48,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Auto-create coach profile if user is a coach but doesn't have one
         if (data.role === 'coach') {
-          const { data: coachData } = await supabase
-            .from('coaches')
-            .select('id')
-            .eq('user_id', userId)
-            .maybeSingle();
-            
-          if (!coachData) {
-            await supabase.from('coaches').insert({
-              user_id: userId,
-              profile_id: data.id,
-              specializations: [],
-              experience_years: 0
-            });
+          try {
+            const { data: coachData } = await supabase
+              .from('coaches')
+              .select('id')
+              .eq('user_id', userId)
+              .maybeSingle();
+              
+            if (!coachData) {
+              await supabase.from('coaches').insert({
+                user_id: userId,
+                profile_id: data.id,
+                specializations: [],
+                experience_years: 0
+              });
+            }
+          } catch (error) {
+            console.error('Error creating coach profile:', error);
           }
         }
         
         // Auto-create admin user if user is an admin but doesn't have one
         if (data.role === 'admin') {
-          const { data: adminData } = await supabase
-            .from('admin_users')
-            .select('id')
-            .eq('user_id', userId)
-            .maybeSingle();
-            
-          if (!adminData) {
-            await supabase.from('admin_users').insert({
-              user_id: userId,
-              profile_id: data.id,
-              permissions: ['read', 'write', 'admin']
-            });
+          try {
+            const { data: adminData } = await supabase
+              .from('admin_users')
+              .select('id')
+              .eq('user_id', userId)
+              .maybeSingle();
+              
+            if (!adminData) {
+              await supabase.from('admin_users').insert({
+                user_id: userId,
+                profile_id: data.id,
+                permissions: ['read', 'write', 'admin']
+              });
+            }
+          } catch (error) {
+            console.error('Error creating admin profile:', error);
           }
         }
+      } else {
+        console.log('No profile found for user:', userId);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
+      // Don't leave user stuck in loading state
+      setLoading(false);
     }
   };
 
@@ -84,9 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -96,23 +122,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
         }
         
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     );
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchProfile(session.user.id);
+    // Get initial session with timeout
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
+        
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      
-      setLoading(false);
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    getInitialSession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, userData: any) => {

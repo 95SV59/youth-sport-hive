@@ -24,13 +24,23 @@ export function useRecommendations() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-sport-recommendations', {
+      // Add timeout to prevent hanging on AI recommendations
+      const recommendationPromise = supabase.functions.invoke('ai-sport-recommendations', {
         body: {
           userId: user.id,
           profileId: profile.id,
           forceNewRecommendation: forceNew
         }
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Recommendation timeout')), 30000)
+      );
+
+      const { data, error } = await Promise.race([
+        recommendationPromise,
+        timeoutPromise
+      ]) as any;
 
       if (error) {
         console.error('Recommendation error:', error);
@@ -52,11 +62,20 @@ export function useRecommendations() {
     } catch (error) {
       console.error('Error fetching recommendations:', error);
       setRecommendations([]);
-      toast({
-        title: "Error",
-        description: "Failed to generate recommendations. Please complete your profile and try again.",
-        variant: "destructive",
-      });
+      
+      if (error.message === 'Recommendation timeout') {
+        toast({
+          title: "Timeout Error",
+          description: "Recommendations are taking too long to generate. Please try again later.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate recommendations. Please complete your profile and try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

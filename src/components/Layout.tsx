@@ -9,8 +9,20 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const { user, loading } = useAuth();
+  const [timeoutReached, setTimeoutReached] = React.useState(false);
 
-  if (loading) {
+  // Add timeout for loading state to prevent infinite loading
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        setTimeoutReached(true);
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  if (loading && !timeoutReached) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
@@ -19,6 +31,11 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       </div>
     );
+  }
+
+  if (timeoutReached && loading) {
+    // If loading takes too long, show error and redirect
+    return <Navigate to="/auth" replace />;
   }
 
   if (!user) {

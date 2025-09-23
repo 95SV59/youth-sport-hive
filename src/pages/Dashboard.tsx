@@ -20,56 +20,85 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [profile]);
+    let isMounted = true;
+    
+    const fetchData = async () => {
+      if (!profile || !isMounted) return;
+      
+      await fetchDashboardData();
+    };
+    
+    fetchData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [profile?.id]); // Only depend on profile ID to prevent unnecessary refetches
 
   const fetchDashboardData = async () => {
-    if (!profile) return;
+    if (!profile) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      // Fetch gamification stats
-      const { data: statsData } = await supabase
-        .from('gamification_stats')
-        .select('*')
-        .eq('profile_id', profile.id)
-        .single();
+      // Use Promise.all for parallel queries with timeout
+      const queries = [
+        // Fetch gamification stats
+        supabase
+          .from('gamification_stats')
+          .select('*')
+          .eq('profile_id', profile.id)
+          .maybeSingle(),
 
-      setStats(statsData);
+        // Fetch upcoming events (registered events)
+        supabase
+          .from('event_registrations')
+          .select(`
+            *,
+            events (
+              id,
+              title,
+              start_time,
+              location,
+              sport_category,
+              cost
+            )
+          `)
+          .eq('profile_id', profile.id)
+          .eq('status', 'confirmed')
+          .gte('events.start_time', new Date().toISOString())
+          .order('events.start_time', { ascending: true })
+          .limit(3),
 
-      // Fetch upcoming events (registered events)
-      const { data: eventsData } = await supabase
-        .from('event_registrations')
-        .select(`
-          *,
-          events (
-            id,
-            title,
-            start_time,
-            location,
-            sport_category,
-            cost
-          )
-        `)
-        .eq('profile_id', profile.id)
-        .eq('status', 'confirmed')
-        .gte('events.start_time', new Date().toISOString())
-        .order('events.start_time', { ascending: true })
-        .limit(3);
+        // Fetch recent achievements
+        supabase
+          .from('user_achievements')
+          .select('*')
+          .eq('profile_id', profile.id)
+          .order('earned_at', { ascending: false })
+          .limit(3)
+      ];
 
-      setUpcomingEvents(eventsData || []);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Dashboard data timeout')), 15000)
+      );
 
-      // Fetch recent achievements
-      const { data: achievementsData } = await supabase
-        .from('user_achievements')
-        .select('*')
-        .eq('profile_id', profile.id)
-        .order('earned_at', { ascending: false })
-        .limit(3);
+      const [statsResult, eventsResult, achievementsResult] = await Promise.race([
+        Promise.all(queries),
+        timeoutPromise
+      ]) as any;
 
-      setAchievements(achievementsData || []);
+      setStats(statsResult.data || null);
+      setUpcomingEvents(eventsResult.data || []);
+      setAchievements(achievementsResult.data || []);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Set default values to prevent blank screen
+      setStats(null);
+      setUpcomingEvents([]);
+      setAchievements([]);
     } finally {
       setLoading(false);
     }
