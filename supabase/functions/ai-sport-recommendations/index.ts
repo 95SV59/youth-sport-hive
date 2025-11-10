@@ -45,22 +45,14 @@ serve(async (req) => {
     const { data: stats } = await supabase
       .from('gamification_stats')
       .select('*')
-      .eq('profile_id', profileId)
-      .single();
+      .eq('user_id', userId)
+      .maybeSingle();
 
     // Get user's event history
     const { data: eventHistory } = await supabase
       .from('event_registrations')
-      .select(`
-        *,
-        events (
-          sport_category,
-          difficulty_level,
-          cost,
-          location
-        )
-      `)
-      .eq('profile_id', profileId)
+      .select('*')
+      .eq('user_id', userId)
       .eq('attended', true);
 
     // Check if we have recent recommendations (unless forced)
@@ -68,15 +60,16 @@ serve(async (req) => {
       const { data: recentRecommendation } = await supabase
         .from('recommendations')
         .select('*')
-        .eq('profile_id', profileId)
+        .eq('user_id', userId)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // 24 hours ago
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
-      if (recentRecommendation && recentRecommendation.length > 0) {
+      if (recentRecommendation) {
         return new Response(
           JSON.stringify({ 
-            recommendations: [recentRecommendation[0]],
+            recommendations: [recentRecommendation],
             cached: true 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -119,7 +112,6 @@ serve(async (req) => {
     - Fitness Goals: ${userContext.fitnessGoals.length > 0 ? userContext.fitnessGoals.join(', ') : 'General fitness'}
     - Activity Preferences: ${userContext.activityPreferences.length > 0 ? userContext.activityPreferences.join(', ') : 'Open to all activities'}
     - Medical Considerations: ${userContext.medicalConditions.length > 0 ? userContext.medicalConditions.join(', ') : 'None'}
-    - Past Event Types: ${userContext.eventHistory.map(e => e.events?.sport_category).filter(Boolean).join(', ') || 'None'}
     - Favorite Sport: ${userContext.favoriteSport}
 
     Available sports categories: basketball, soccer, tennis, swimming, volleyball, baseball, track_field, martial_arts, gymnastics, other
@@ -139,29 +131,29 @@ serve(async (req) => {
     }
     `;
 
-    // Call OpenAI API
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Lovable AI Gateway
+    const lovableAIResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: 'You are a sports recommendation AI that provides personalized suggestions.' },
           { role: 'user', content: aiPrompt }
         ],
-        temperature: 0.7,
-        max_tokens: 500
       }),
     });
 
-    if (!openAIResponse.ok) {
-      throw new Error(`OpenAI API error: ${openAIResponse.statusText}`);
+    if (!lovableAIResponse.ok) {
+      const errorText = await lovableAIResponse.text();
+      console.error('Lovable AI error:', lovableAIResponse.status, errorText);
+      throw new Error(`AI Gateway error: ${lovableAIResponse.statusText}`);
     }
 
-    const aiResult = await openAIResponse.json();
+    const aiResult = await lovableAIResponse.json();
     const recommendation = JSON.parse(aiResult.choices[0].message.content);
 
     // Save recommendation to database
@@ -169,13 +161,13 @@ serve(async (req) => {
       .from('recommendations')
       .insert({
         user_id: userId,
-        profile_id: profileId,
-        recommended_sport: recommendation.sport,
-        reasoning: recommendation.reasoning,
-        confidence_score: recommendation.confidence / 100,
-        algorithm_version: 'v2.0-openai',
-        input_factors: userContext,
-        recommendation_score: recommendation.confidence / 100
+        sport_type: recommendation.sport,
+        recommendation_data: {
+          reasoning: recommendation.reasoning,
+          benefits: recommendation.benefits,
+          sport: recommendation.sport
+        },
+        confidence_score: recommendation.confidence / 100
       })
       .select()
       .single();
