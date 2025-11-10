@@ -69,8 +69,8 @@ const CoachApplication = () => {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('user_id', user.id)
-        .single();
+        .eq('id', user.id)
+        .single() as any;
 
       if (profileError) throw profileError;
 

@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profilePromise = supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .maybeSingle();
 
       const timeoutPromise = new Promise((_, reject) =>

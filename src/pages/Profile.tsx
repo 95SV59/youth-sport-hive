@@ -80,8 +80,8 @@ const Profile = () => {
       const { data: profileInfo, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user?.id)
-        .single();
+        .eq('id', user?.id)
+        .single() as any;
 
       if (profileError) throw profileError;
 
@@ -115,7 +115,7 @@ const Profile = () => {
         }
 
         if (coachInfo) {
-          setCoachData(coachInfo);
+          setCoachData(coachInfo as any);
         }
       }
     } catch (error: any) {
@@ -134,7 +134,7 @@ const Profile = () => {
       const { error } = await supabase
         .from('profiles')
         .update(profileData)
-        .eq('user_id', user?.id);
+        .eq('id', user?.id) as any;
 
       if (error) throw error;
 

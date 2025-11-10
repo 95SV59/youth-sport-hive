@@ -45,7 +45,8 @@ export type Database = {
           id: string
           is_verified: boolean
           rating: number | null
-          specialization: string
+          specializations: string[]
+          total_events_hosted: number | null
           total_reviews: number | null
           updated_at: string
           user_id: string
@@ -59,7 +60,8 @@ export type Database = {
           id?: string
           is_verified?: boolean
           rating?: number | null
-          specialization: string
+          specializations?: string[]
+          total_events_hosted?: number | null
           total_reviews?: number | null
           updated_at?: string
           user_id: string
@@ -73,68 +75,101 @@ export type Database = {
           id?: string
           is_verified?: boolean
           rating?: number | null
-          specialization?: string
+          specializations?: string[]
+          total_events_hosted?: number | null
           total_reviews?: number | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "coaches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_challenges: {
         Row: {
+          active_date: string | null
+          badge_reward: string | null
           challenge_date: string
+          challenge_type: string
           created_at: string
           description: string
-          difficulty: string
+          difficulty_level: string
+          expires_at: string | null
           id: string
           points_reward: number
+          sport_category: string | null
+          target_value: number
           title: string
         }
         Insert: {
+          active_date?: string | null
+          badge_reward?: string | null
           challenge_date: string
+          challenge_type: string
           created_at?: string
           description: string
-          difficulty: string
+          difficulty_level: string
+          expires_at?: string | null
           id?: string
           points_reward: number
+          sport_category?: string | null
+          target_value: number
           title: string
         }
         Update: {
+          active_date?: string | null
+          badge_reward?: string | null
           challenge_date?: string
+          challenge_type?: string
           created_at?: string
           description?: string
-          difficulty?: string
+          difficulty_level?: string
+          expires_at?: string | null
           id?: string
           points_reward?: number
+          sport_category?: string | null
+          target_value?: number
           title?: string
         }
         Relationships: []
       }
       event_registrations: {
         Row: {
+          attended: boolean | null
           created_at: string
           event_id: string
           id: string
           payment_status: string
-          registration_status: string
+          registered_at: string
+          status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          attended?: boolean | null
           created_at?: string
           event_id: string
           id?: string
           payment_status?: string
-          registration_status?: string
+          registered_at?: string
+          status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          attended?: boolean | null
           created_at?: string
           event_id?: string
           id?: string
           payment_status?: string
-          registration_status?: string
+          registered_at?: string
+          status?: string
           updated_at?: string
           user_id?: string
         }
@@ -146,53 +181,72 @@ export type Database = {
             referencedRelation: "events"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "event_registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       events: {
         Row: {
+          age_max: number | null
+          age_min: number | null
           coach_id: string
+          cost: number
           created_at: string
           current_participants: number
           description: string
-          event_date: string
+          difficulty_level: string | null
+          end_time: string
           id: string
           location: string
           max_participants: number
-          price: number
-          skill_level: string
+          sport_category: string | null
           sport_type: string
+          start_time: string
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          age_max?: number | null
+          age_min?: number | null
           coach_id: string
+          cost: number
           created_at?: string
           current_participants?: number
           description: string
-          event_date: string
+          difficulty_level?: string | null
+          end_time: string
           id?: string
           location: string
           max_participants: number
-          price: number
-          skill_level: string
+          sport_category?: string | null
           sport_type: string
+          start_time: string
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          age_max?: number | null
+          age_min?: number | null
           coach_id?: string
+          cost?: number
           created_at?: string
           current_participants?: number
           description?: string
-          event_date?: string
+          difficulty_level?: string | null
+          end_time?: string
           id?: string
           location?: string
           max_participants?: number
-          price?: number
-          skill_level?: string
+          sport_category?: string | null
           sport_type?: string
+          start_time?: string
           status?: string
           title?: string
           updated_at?: string
@@ -212,9 +266,13 @@ export type Database = {
           achievements: Json | null
           badges: Json | null
           created_at: string
+          current_level: number | null
+          current_streak: number | null
+          events_attended: number | null
           id: string
           last_activity_date: string | null
           level: number
+          longest_streak: number | null
           streak_days: number
           total_points: number
           updated_at: string
@@ -224,9 +282,13 @@ export type Database = {
           achievements?: Json | null
           badges?: Json | null
           created_at?: string
+          current_level?: number | null
+          current_streak?: number | null
+          events_attended?: number | null
           id?: string
           last_activity_date?: string | null
           level?: number
+          longest_streak?: number | null
           streak_days?: number
           total_points?: number
           updated_at?: string
@@ -236,9 +298,13 @@ export type Database = {
           achievements?: Json | null
           badges?: Json | null
           created_at?: string
+          current_level?: number | null
+          current_streak?: number | null
+          events_attended?: number | null
           id?: string
           last_activity_date?: string | null
           level?: number
+          longest_streak?: number | null
           streak_days?: number
           total_points?: number
           updated_at?: string
@@ -275,6 +341,36 @@ export type Database = {
           score?: number
           sport_type?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          type?: string
           user_id?: string
         }
         Relationships: []
@@ -395,7 +491,7 @@ export type Database = {
           created_at: string
           current_progress: number
           id: string
-          target_progress: number
+          points_earned: number | null
           updated_at: string
           user_id: string
         }
@@ -406,7 +502,7 @@ export type Database = {
           created_at?: string
           current_progress?: number
           id?: string
-          target_progress?: number
+          points_earned?: number | null
           updated_at?: string
           user_id: string
         }
@@ -417,7 +513,7 @@ export type Database = {
           created_at?: string
           current_progress?: number
           id?: string
-          target_progress?: number
+          points_earned?: number | null
           updated_at?: string
           user_id?: string
         }

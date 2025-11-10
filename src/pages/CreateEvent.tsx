@@ -91,7 +91,18 @@ const CreateEvent = () => {
       const { error } = await supabase
         .from('events')
         .insert({
-          ...formData,
+          title: formData.title,
+          description: formData.description,
+          location: formData.location,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          cost: formData.cost,
+          sport_type: formData.sport_category,
+          sport_category: formData.sport_category,
+          difficulty_level: formData.difficulty_level,
+          max_participants: formData.max_participants,
+          age_min: formData.age_min,
+          age_max: formData.age_max,
           coach_id: coachData.id,
           status: 'pending' // Events need admin approval
         });

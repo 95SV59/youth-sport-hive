@@ -55,9 +55,7 @@ export function useGamification() {
       const { data: challengesData, error: challengesError } = await supabase
         .from('daily_challenges')
         .select('*')
-        .eq('is_active', true)
-        .gte('expires_at', new Date().toISOString())
-        .lte('active_date', new Date().toISOString().split('T')[0]);
+        .lte('active_date', new Date().toISOString().split('T')[0]) as any;
 
       if (challengesError) throw challengesError;
 
@@ -89,17 +87,10 @@ export function useGamification() {
       for (const period of periods) {
         const { data, error } = await supabase
           .from('leaderboards')
-          .select(`
-            *,
-            profiles (
-              first_name,
-              last_name,
-              avatar_url
-            )
-          `)
-          .eq('category', period)
-          .order('rank', { ascending: true })
-          .limit(10);
+          .select('*')
+          .eq('period', period)
+          .order('score', { ascending: false })
+          .limit(10) as any;
 
         if (error) throw error;
         leaderboardData[period] = data || [];

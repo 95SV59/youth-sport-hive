@@ -12,7 +12,7 @@ import RecommendationCard from '@/components/RecommendationCard';
 import Layout from '@/components/Layout';
 
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { recommendations } = useRecommendations();
   const [stats, setStats] = useState<any>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
@@ -48,36 +48,25 @@ const Dashboard = () => {
         supabase
           .from('gamification_stats')
           .select('*')
-          .eq('profile_id', profile.id)
-          .maybeSingle(),
+          .eq('user_id', user?.id)
+          .maybeSingle() as any,
 
         // Fetch upcoming events (registered events)
         supabase
           .from('event_registrations')
-          .select(`
-            *,
-            events (
-              id,
-              title,
-              start_time,
-              location,
-              sport_category,
-              cost
-            )
-          `)
-          .eq('profile_id', profile.id)
+          .select('*')
+          .eq('user_id', user?.id)
           .eq('status', 'confirmed')
-          .gte('events.start_time', new Date().toISOString())
-          .order('events.start_time', { ascending: true })
-          .limit(3),
+          .order('created_at', { ascending: true })
+          .limit(3) as any,
 
         // Fetch recent achievements
         supabase
           .from('user_achievements')
           .select('*')
-          .eq('profile_id', profile.id)
+          .eq('user_id', user?.id)
           .order('earned_at', { ascending: false })
-          .limit(3)
+          .limit(3) as any
       ];
 
       const timeoutPromise = new Promise((_, reject) =>
