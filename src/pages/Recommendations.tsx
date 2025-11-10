@@ -49,7 +49,7 @@ const Recommendations = () => {
                 recommendation={recommendation}
                 onAccept={() => {
                   // Redirect to events page with filter
-                  window.location.href = `/events?sport=${recommendation.recommended_sport}`;
+                  window.location.href = `/events?sport=${recommendation.sport_type}`;
                 }}
               />
             ))}

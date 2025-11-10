@@ -223,12 +223,12 @@ const Dashboard = () => {
                 {recommendations.slice(0, 2).map((recommendation) => (
                   <div key={recommendation.id} className="p-4 bg-primary/5 rounded-lg border">
                     <h4 className="font-semibold text-primary">
-                      {recommendation.recommended_sport.split('_').map(word => 
+                      {(recommendation.sport_type || recommendation.recommendation_data?.sport || 'Unknown').split('_').map(word => 
                         word.charAt(0).toUpperCase() + word.slice(1)
                       ).join(' ')}
                     </h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {recommendation.reasoning.substring(0, 100)}...
+                      {(recommendation.recommendation_data?.reasoning || '').substring(0, 100)}...
                     </p>
                     <div className="flex justify-between items-center mt-3">
                       <Badge variant="outline">

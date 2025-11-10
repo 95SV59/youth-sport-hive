@@ -8,10 +8,14 @@ import { useRecommendations } from '@/hooks/useRecommendations';
 interface RecommendationCardProps {
   recommendation: {
     id: string;
-    recommended_sport: string;
-    reasoning: string;
+    sport_type: string;
+    recommended_sport?: string; // Legacy
+    recommendation_data: {
+      sport: string;
+      reasoning: string;
+      benefits: string[];
+    };
     confidence_score: number;
-    benefits?: string[];
     created_at: string;
   };
   onAccept?: () => void;
@@ -71,7 +75,7 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({
       <CardContent className="space-y-4">
         <div className="text-center p-4 bg-primary/5 rounded-lg">
           <h3 className="text-xl font-bold text-primary">
-            {formatSportName(recommendation.recommended_sport)}
+            {formatSportName(recommendation.sport_type || recommendation.recommendation_data.sport)}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             {Math.round(recommendation.confidence_score * 100)}% confidence match
@@ -81,15 +85,15 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({
         <div>
           <h4 className="font-semibold mb-2">Why this sport is perfect for you:</h4>
           <p className="text-sm text-muted-foreground">
-            {recommendation.reasoning}
+            {recommendation.recommendation_data.reasoning}
           </p>
         </div>
 
-        {recommendation.benefits && recommendation.benefits.length > 0 && (
+        {recommendation.recommendation_data.benefits && recommendation.recommendation_data.benefits.length > 0 && (
           <div>
             <h4 className="font-semibold mb-2">Key Benefits:</h4>
             <ul className="space-y-1">
-              {recommendation.benefits.map((benefit, index) => (
+              {recommendation.recommendation_data.benefits.map((benefit, index) => (
                 <li key={index} className="text-sm text-muted-foreground flex items-start">
                   <span className="text-primary mr-2">•</span>
                   {benefit}

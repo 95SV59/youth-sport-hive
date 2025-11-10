@@ -5,12 +5,15 @@ import { useToast } from '@/components/ui/use-toast';
 
 interface Recommendation {
   id: string;
-  recommended_sport: string;
-  reasoning: string;
+  sport_type: string;
+  recommended_sport?: string; // Legacy field
+  recommendation_data: {
+    sport: string;
+    reasoning: string;
+    benefits: string[];
+  };
   confidence_score: number;
-  algorithm_version: string;
   created_at: string;
-  benefits?: string[];
 }
 
 export function useRecommendations() {
