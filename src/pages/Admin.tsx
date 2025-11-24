@@ -12,57 +12,7 @@ import {
   Check, X, Shield, UserCheck, AlertTriangle 
 } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  start_time: string;
-  end_time: string;
-  cost: number;
-  sport_category: string;
-  difficulty_level: string;
-  max_participants: number;
-  current_participants: number;
-  status: string;
-  created_at: string;
-  coaches?: {
-    profiles: {
-      first_name: string;
-      last_name: string;
-      email: string;
-    };
-  };
-}
-
-interface Coach {
-  id: string;
-  is_verified: boolean;
-  experience_years: number;
-  specializations: string[];
-  hourly_rate: number;
-  total_events_hosted: number;
-  rating: number;
-  user_id: string;
-  profiles: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone?: string;
-  };
-}
-
-interface Profile {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: string;
-  created_at: string;
-  phone?: string;
-  location?: string;
-}
+import { Event, Coach, Profile } from '@/types';
 
 const Admin = () => {
   const { profile } = useAuth();
@@ -86,6 +36,8 @@ const Admin = () => {
         .select(`
           *,
           coaches (
+            id,
+            rating,
             profiles (
               first_name,
               last_name,
@@ -107,7 +59,9 @@ const Admin = () => {
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            bio,
+            avatar_url
           )
         `)
         .eq('is_verified', false)

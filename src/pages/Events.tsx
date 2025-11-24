@@ -10,30 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
 import { Calendar, MapPin, Users, Clock, DollarSign, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  start_time: string;
-  end_time: string;
-  cost: number;
-  sport_category: string;
-  difficulty_level: string;
-  max_participants: number;
-  current_participants: number;
-  age_min: number;
-  age_max: number;
-  image_url?: string;
-  coach_id: string;
-  coaches: {
-    profiles: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import { Event } from '@/types';
 
 const Events = () => {
   const { user } = useAuth();
@@ -55,6 +32,8 @@ const Events = () => {
         .select(`
           *,
           coaches (
+            id,
+            rating,
             profiles (
               first_name,
               last_name
