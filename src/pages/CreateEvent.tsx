@@ -19,7 +19,8 @@ interface EventFormData {
   start_time: string;
   end_time: string;
   cost: number;
-  sport_category: 'soccer' | 'basketball' | 'tennis' | 'swimming' | 'baseball' | 'volleyball' | 'track_field' | 'martial_arts';
+  sport_type: string;
+  sport_category?: string;
   difficulty_level: 'beginner' | 'intermediate' | 'advanced' | 'all_levels';
   max_participants: number;
   age_min: number;
@@ -40,6 +41,7 @@ const CreateEvent = () => {
     start_time: '',
     end_time: '',
     cost: 0,
+    sport_type: 'soccer',
     sport_category: 'soccer',
     difficulty_level: 'all_levels',
     max_participants: 10,

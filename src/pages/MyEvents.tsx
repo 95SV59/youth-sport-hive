@@ -10,36 +10,7 @@ import Layout from '@/components/Layout';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, Clock, DollarSign, Plus, Eye, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  start_time: string;
-  end_time: string;
-  cost: number;
-  sport_category: string;
-  difficulty_level: string;
-  max_participants: number;
-  current_participants: number;
-  age_min: number;
-  age_max: number;
-  status: string;
-  created_at: string;
-}
-
-interface Registration {
-  id: string;
-  status: string;
-  registered_at: string;
-  attended: boolean;
-  profiles: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  };
-}
+import { Event, Registration } from '@/types';
 
 const MyEvents = () => {
   const { user, profile } = useAuth();

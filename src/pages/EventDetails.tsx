@@ -14,44 +14,7 @@ import {
   ArrowLeft, CheckCircle, MessageSquare, Share2 
 } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  start_time: string;
-  end_time: string;
-  cost: number;
-  sport_category: string;
-  difficulty_level: string;
-  max_participants: number;
-  current_participants: number;
-  age_min: number;
-  age_max: number;
-  image_url?: string;
-  equipment_provided?: string[];
-  equipment_required?: string[];
-  coaches: {
-    id: string;
-    is_verified: boolean;
-    experience_years: number;
-    rating: number;
-    total_events_hosted: number;
-    profiles: {
-      first_name: string;
-      last_name: string;
-      bio?: string;
-      avatar_url?: string;
-    };
-  };
-}
-
-interface Registration {
-  id: string;
-  status: string;
-  registered_at: string;
-}
+import { Event, Registration } from '@/types';
 
 const EventDetails = () => {
   const { id } = useParams<{ id: string }>();
