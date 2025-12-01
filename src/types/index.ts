@@ -135,11 +135,25 @@ export interface Recommendation {
     sport: string;
     reasoning: string;
     benefits: string[];
+    matchFactors?: string[];
+    scoringBreakdown?: {
+      aiConfidence: number;
+      userPreferenceScore: number;
+      profileMatchScore: number;
+      diversityBonus: number;
+      trendingBonus: number;
+      finalScore: number;
+    };
+    abVariant?: string;
   };
   confidence_score: number;
   was_accepted?: boolean;
   user_feedback?: string;
-  user_interaction_data?: any;
+  user_interaction_data?: {
+    interacted_at: string;
+    feedback_provided: boolean;
+    timeToDecisionSeconds?: number;
+  };
   created_at: string;
   updated_at: string;
 }

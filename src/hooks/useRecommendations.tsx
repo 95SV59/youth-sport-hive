@@ -72,21 +72,62 @@ export function useRecommendations() {
     }
   };
 
-  const updateRecommendationFeedback = async (recommendationId: string, wasAccepted: boolean, feedback?: string) => {
+  const updateRecommendationFeedback = async (
+    recommendationId: string, 
+    wasAccepted: boolean, 
+    feedback?: string,
+    sportType?: string,
+    timeToDecisionSeconds?: number
+  ) => {
+    if (!user) return;
+
     try {
-      const { error } = await supabase
+      // Update recommendation
+      const { error: recError } = await supabase
         .from('recommendations')
         .update({
           was_accepted: wasAccepted,
           user_feedback: feedback,
           user_interaction_data: {
             interacted_at: new Date().toISOString(),
-            feedback_provided: !!feedback
+            feedback_provided: !!feedback,
+            timeToDecisionSeconds
           }
         })
         .eq('id', recommendationId);
 
-      if (error) throw error;
+      if (recError) throw recError;
+
+      // Update user sport preference (learning)
+      if (sportType) {
+        const { error: prefError } = await supabase.rpc('update_sport_preference', {
+          p_user_id: user.id,
+          p_sport_type: sportType,
+          p_is_positive: wasAccepted
+        });
+
+        if (prefError) {
+          console.error('Error updating preference:', prefError);
+        }
+      }
+
+      // Track analytics
+      const { error: analyticsError } = await supabase
+        .from('recommendation_analytics')
+        .insert({
+          recommendation_id: recommendationId,
+          user_id: user.id,
+          time_to_decision_seconds: timeToDecisionSeconds,
+          engagement_score: wasAccepted ? 1.0 : 0.0,
+          context_data: {
+            feedback_provided: !!feedback,
+            feedback_length: feedback?.length || 0
+          }
+        });
+
+      if (analyticsError) {
+        console.error('Error tracking analytics:', analyticsError);
+      }
 
       toast({
         title: "Thank you!",

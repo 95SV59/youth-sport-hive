@@ -2,7 +2,7 @@ import React from 'react';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RefreshCw, Lightbulb, TrendingUp } from 'lucide-react';
+import { RefreshCw, Lightbulb, TrendingUp, BarChart3 } from 'lucide-react';
 import RecommendationCard from '@/components/RecommendationCard';
 import Layout from '@/components/Layout';
 import { Link } from 'react-router-dom';
@@ -17,24 +17,32 @@ const Recommendations = () => {
   return (
     <Layout>
       <div className="p-8 space-y-8">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground flex items-center space-x-2">
               <Lightbulb className="h-8 w-8 text-primary" />
               <span>AI Sport Recommendations</span>
             </h1>
             <p className="text-muted-foreground mt-2">
-              Personalized sport suggestions based on your profile and preferences
+              Personalized sport suggestions powered by advanced machine learning
             </p>
           </div>
-          <Button 
-            onClick={handleGetNewRecommendations}
-            disabled={loading}
-            className="flex items-center space-x-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Get New Suggestions</span>
-          </Button>
+          <div className="flex gap-2">
+            <Link to="/recommendation-analytics">
+              <Button variant="outline" className="flex items-center space-x-2">
+                <BarChart3 className="h-4 w-4" />
+                <span>View Analytics</span>
+              </Button>
+            </Link>
+            <Button 
+              onClick={handleGetNewRecommendations}
+              disabled={loading}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Get New Suggestions</span>
+            </Button>
+          </div>
         </div>
 
         {loading ? (
