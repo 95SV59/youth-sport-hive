@@ -258,7 +258,17 @@ serve(async (req) => {
     }
 
     const aiResult = await lovableAIResponse.json();
-    const aiRecommendations = JSON.parse(aiResult.choices[0].message.content);
+    
+    // Extract JSON from markdown code blocks if present
+    let aiContent = aiResult.choices[0].message.content;
+    
+    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = aiContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      aiContent = codeBlockMatch[1].trim();
+    }
+    
+    const aiRecommendations = JSON.parse(aiContent);
 
     // Calculate advanced scores for each recommendation
     const scoredRecommendations = await Promise.all(
