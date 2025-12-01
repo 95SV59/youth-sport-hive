@@ -17,6 +17,7 @@ import CoachApplication from "./pages/CoachApplication";
 import Notifications from "./pages/Notifications";
 import Analytics from "./pages/Analytics";
 import Recommendations from "./pages/Recommendations";
+import RecommendationAnalytics from "./pages/RecommendationAnalytics";
 import Challenges from "./pages/Challenges";
 import NotFound from "./pages/NotFound";
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/recommendations" element={<Recommendations />} />
+            <Route path="/recommendation-analytics" element={<RecommendationAnalytics />} />
             <Route path="/challenges" element={<Challenges />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

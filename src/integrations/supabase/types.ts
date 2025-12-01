@@ -420,6 +420,99 @@ export type Database = {
         }
         Relationships: []
       }
+      recommendation_analytics: {
+        Row: {
+          ab_test_variant: string | null
+          context_data: Json | null
+          created_at: string | null
+          engagement_score: number | null
+          event_id: string | null
+          id: string
+          recommendation_id: string
+          resulted_in_registration: boolean | null
+          time_to_decision_seconds: number | null
+          user_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          ab_test_variant?: string | null
+          context_data?: Json | null
+          created_at?: string | null
+          engagement_score?: number | null
+          event_id?: string | null
+          id?: string
+          recommendation_id: string
+          resulted_in_registration?: boolean | null
+          time_to_decision_seconds?: number | null
+          user_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          ab_test_variant?: string | null
+          context_data?: Json | null
+          created_at?: string | null
+          engagement_score?: number | null
+          event_id?: string | null
+          id?: string
+          recommendation_id?: string
+          resulted_in_registration?: boolean | null
+          time_to_decision_seconds?: number | null
+          user_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_analytics_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_analytics_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_experiments: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          description: string | null
+          ended_at: string | null
+          experiment_name: string
+          id: string
+          is_active: boolean | null
+          variant_name: string
+          weight: number | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          description?: string | null
+          ended_at?: string | null
+          experiment_name: string
+          id?: string
+          is_active?: boolean | null
+          variant_name: string
+          weight?: number | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          description?: string | null
+          ended_at?: string | null
+          experiment_name?: string
+          id?: string
+          is_active?: boolean | null
+          variant_name?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
       recommendations: {
         Row: {
           confidence_score: number | null
@@ -527,12 +620,58 @@ export type Database = {
           },
         ]
       }
+      user_sport_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          interaction_count: number | null
+          last_interaction_at: string | null
+          negative_interactions: number | null
+          positive_interactions: number | null
+          preference_score: number | null
+          sport_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          interaction_count?: number | null
+          last_interaction_at?: string | null
+          negative_interactions?: number | null
+          positive_interactions?: number | null
+          preference_score?: number | null
+          sport_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          interaction_count?: number | null
+          last_interaction_at?: string | null
+          negative_interactions?: number | null
+          positive_interactions?: number | null
+          preference_score?: number | null
+          sport_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_sport_preference: {
+        Args: {
+          p_is_positive: boolean
+          p_sport_type: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
