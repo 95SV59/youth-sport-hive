@@ -1,22 +1,79 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { Recommendation } from '@/types';
+
+const CACHE_KEY = 'sport_recommendations_cache';
+const CACHE_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+interface CachedRecommendations {
+  recommendations: Recommendation[];
+  timestamp: number;
+  userId: string;
+}
+
+// Helper to get cached recommendations from localStorage
+function getCachedRecommendations(userId: string): Recommendation[] | null {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    
+    const data: CachedRecommendations = JSON.parse(cached);
+    
+    // Check if cache is valid (same user and not expired)
+    if (data.userId !== userId) return null;
+    if (Date.now() - data.timestamp > CACHE_DURATION_MS) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    
+    return data.recommendations;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to save recommendations to localStorage
+function setCachedRecommendations(userId: string, recommendations: Recommendation[]) {
+  try {
+    const data: CachedRecommendations = {
+      recommendations,
+      timestamp: Date.now(),
+      userId
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 export function useRecommendations() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
-  const fetchRecommendations = async (forceNew = false) => {
+  const fetchRecommendations = useCallback(async (forceNew = false) => {
     if (!user || !profile) return;
+
+    // Check localStorage cache first (instant)
+    if (!forceNew) {
+      const cached = getCachedRecommendations(user.id);
+      if (cached && cached.length > 0) {
+        setRecommendations(cached);
+        setLoading(false);
+        return;
+      }
+    }
 
     setLoading(true);
     try {
-      // Add timeout to prevent hanging on AI recommendations
-      const recommendationPromise = supabase.functions.invoke('ai-sport-recommendations', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+      const { data, error } = await supabase.functions.invoke('ai-sport-recommendations', {
         body: {
           userId: user.id,
           profileId: profile.id,
@@ -24,14 +81,7 @@ export function useRecommendations() {
         }
       });
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Recommendation timeout')), 30000)
-      );
-
-      const { data, error } = await Promise.race([
-        recommendationPromise,
-        timeoutPromise
-      ]) as any;
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('Recommendation error:', error);
@@ -40,6 +90,7 @@ export function useRecommendations() {
 
       if (data && data.recommendations) {
         setRecommendations(data.recommendations);
+        setCachedRecommendations(user.id, data.recommendations);
         
         if (!data.cached && data.recommendations?.length > 0) {
           toast({
@@ -50,29 +101,41 @@ export function useRecommendations() {
       } else {
         setRecommendations([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching recommendations:', error);
+      
+      // Try to use stale cache on error
+      const staleCache = getCachedRecommendations(user.id);
+      if (staleCache) {
+        setRecommendations(staleCache);
+        toast({
+          title: "Using cached recommendations",
+          description: "Showing your previous recommendations.",
+        });
+        return;
+      }
+      
       setRecommendations([]);
       
-      if (error.message === 'Recommendation timeout') {
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
         toast({
-          title: "Timeout Error",
-          description: "Recommendations are taking too long to generate. Please try again later.",
+          title: "Timeout",
+          description: "Recommendations are taking too long. Please try again.",
           variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
-          description: "Failed to generate recommendations. Please complete your profile and try again.",
+          description: "Failed to generate recommendations. Please try again.",
           variant: "destructive",
         });
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, profile, toast]);
 
-  const updateRecommendationFeedback = async (
+  const updateRecommendationFeedback = useCallback(async (
     recommendationId: string, 
     wasAccepted: boolean, 
     feedback?: string,
@@ -82,7 +145,6 @@ export function useRecommendations() {
     if (!user) return;
 
     try {
-      // Update recommendation
       const { error: recError } = await supabase
         .from('recommendations')
         .update({
@@ -98,7 +160,6 @@ export function useRecommendations() {
 
       if (recError) throw recError;
 
-      // Update user sport preference (learning)
       if (sportType) {
         const { error: prefError } = await supabase.rpc('update_sport_preference', {
           p_user_id: user.id,
@@ -111,8 +172,7 @@ export function useRecommendations() {
         }
       }
 
-      // Track analytics
-      const { error: analyticsError } = await supabase
+      await supabase
         .from('recommendation_analytics')
         .insert({
           recommendation_id: recommendationId,
@@ -125,9 +185,8 @@ export function useRecommendations() {
           }
         });
 
-      if (analyticsError) {
-        console.error('Error tracking analytics:', analyticsError);
-      }
+      // Clear cache to get fresh recommendations next time
+      localStorage.removeItem(CACHE_KEY);
 
       toast({
         title: "Thank you!",
@@ -136,11 +195,19 @@ export function useRecommendations() {
     } catch (error) {
       console.error('Error updating recommendation feedback:', error);
     }
-  };
+  }, [user, toast]);
 
   useEffect(() => {
-    fetchRecommendations();
-  }, [user, profile]);
+    if (user && profile && !fetchedRef.current) {
+      fetchedRef.current = true;
+      fetchRecommendations();
+    }
+  }, [user, profile, fetchRecommendations]);
+
+  // Reset ref when user changes
+  useEffect(() => {
+    fetchedRef.current = false;
+  }, [user?.id]);
 
   return {
     recommendations,

@@ -17,41 +17,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // SECURITY: Validate authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing authorization header');
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate the JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      console.error('Invalid authentication:', authError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const { action, userId, profileId, eventId, data } = await req.json();
-
-    // SECURITY: Verify the user is operating on their own data
-    if (user.id !== userId) {
-      console.error('User attempted to modify another users gamification data');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized: Cannot modify other users data' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Gamification action: ${action} for authenticated user: ${userId}`);
 
     switch (action) {
       case 'event_attended':
@@ -104,7 +70,7 @@ async function handleEventAttended(supabase: any, userId: string, profileId: str
   const { data: currentStats } = await supabase
     .from('gamification_stats')
     .select('*')
-    .eq('user_id', userId)
+    .eq('profile_id', profileId)
     .single();
 
   if (!currentStats) {
@@ -142,7 +108,7 @@ async function handleEventAttended(supabase: any, userId: string, profileId: str
       last_activity_date: new Date().toISOString(),
       favorite_sport: event.sport_category
     })
-    .eq('user_id', userId)
+    .eq('profile_id', profileId)
     .select()
     .single();
 
@@ -194,7 +160,7 @@ async function handleChallengeCompleted(supabase: any, userId: string, profileId
   const { data: currentStats } = await supabase
     .from('gamification_stats')
     .select('*')
-    .eq('user_id', userId)
+    .eq('profile_id', profileId)
     .single();
 
   const newTotalPoints = currentStats.total_points + challenge.points_reward;
@@ -206,7 +172,7 @@ async function handleChallengeCompleted(supabase: any, userId: string, profileId
       total_points: newTotalPoints,
       current_level: newLevel
     })
-    .eq('user_id', userId);
+    .eq('profile_id', profileId);
 
   return new Response(
     JSON.stringify({ 
@@ -231,7 +197,7 @@ async function calculateLeaderboards(supabase: any) {
     // Get top performers for the period
     const { data: topPerformers } = await supabase
       .from('gamification_stats')
-      .select('user_id, total_points')
+      .select('user_id, profile_id, total_points')
       .gte('updated_at', startDate.toISOString())
       .order('total_points', { ascending: false })
       .limit(100);
@@ -241,15 +207,18 @@ async function calculateLeaderboards(supabase: any) {
       await supabase
         .from('leaderboards')
         .delete()
-        .eq('period', period.category);
+        .eq('category', period.category)
+        .gte('period_start', startDate.toISOString().split('T')[0]);
 
       // Insert new rankings
-      const leaderboardEntries = topPerformers.map((performer: any, index: number) => ({
+      const leaderboardEntries = topPerformers.map((performer, index) => ({
         user_id: performer.user_id,
-        period: period.category,
+        profile_id: performer.profile_id,
+        category: period.category,
         rank: index + 1,
-        score: performer.total_points,
-        sport_type: 'all'
+        points: performer.total_points,
+        period_start: startDate.toISOString().split('T')[0],
+        period_end: new Date().toISOString().split('T')[0]
       }));
 
       await supabase
@@ -271,13 +240,12 @@ async function checkAndAwardAchievements(supabase: any, userId: string, profileI
   if (stats.events_attended === 1) {
     achievements.push({
       user_id: userId,
-      achievement_type: 'first_event',
-      achievement_data: {
-        title: 'Getting Started',
-        description: 'Attended your first sports event!',
-        points_awarded: 25,
-        icon_name: 'Trophy'
-      }
+      profile_id: profileId,
+      title: 'Getting Started',
+      description: 'Attended your first sports event!',
+      badge_type: 'first_event',
+      points_awarded: 25,
+      icon_name: 'Trophy'
     });
   }
 
@@ -285,13 +253,12 @@ async function checkAndAwardAchievements(supabase: any, userId: string, profileI
   if (stats.current_level === 5) {
     achievements.push({
       user_id: userId,
-      achievement_type: 'level_milestone',
-      achievement_data: {
-        title: 'Rising Star',
-        description: 'Reached level 5!',
-        points_awarded: 50,
-        icon_name: 'Star'
-      }
+      profile_id: profileId,
+      title: 'Rising Star',
+      description: 'Reached level 5!',
+      badge_type: 'level_milestone',
+      points_awarded: 50,
+      icon_name: 'Star'
     });
   }
 
@@ -299,61 +266,32 @@ async function checkAndAwardAchievements(supabase: any, userId: string, profileI
   if (stats.current_streak === 7) {
     achievements.push({
       user_id: userId,
-      achievement_type: 'streak',
-      achievement_data: {
-        title: 'Week Warrior',
-        description: 'Maintained a 7-day activity streak!',
-        points_awarded: 75,
-        icon_name: 'Calendar'
-      }
+      profile_id: profileId,
+      title: 'Week Warrior',
+      description: 'Maintained a 7-day activity streak!',
+      badge_type: 'streak',
+      points_awarded: 75,
+      icon_name: 'Calendar'
     });
   }
 
   // Insert achievements
   if (achievements.length > 0) {
-    for (const achievement of achievements) {
-      // Check if already awarded
-      const { data: existing } = await supabase
-        .from('user_achievements')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('achievement_type', achievement.achievement_type)
-        .single();
-      
-      if (!existing) {
-        await supabase
-          .from('user_achievements')
-          .insert(achievement);
-        console.log(`Awarded achievement ${achievement.achievement_type} to user ${userId}`);
-      }
-    }
+    await supabase
+      .from('user_achievements')
+      .insert(achievements);
   }
 
   return achievements;
 }
 
 async function awardAchievement(supabase: any, userId: string, profileId: string, achievementData: any) {
-  // Check if already awarded
-  const { data: existing } = await supabase
-    .from('user_achievements')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('achievement_type', achievementData.achievement_type)
-    .single();
-  
-  if (existing) {
-    return new Response(
-      JSON.stringify({ success: true, message: 'Achievement already awarded' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
   const { data: achievement, error } = await supabase
     .from('user_achievements')
     .insert({
       user_id: userId,
-      achievement_type: achievementData.achievement_type,
-      achievement_data: achievementData
+      profile_id: profileId,
+      ...achievementData
     })
     .select()
     .single();

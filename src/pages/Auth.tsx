@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,37 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Navigate } from 'react-router-dom';
-import { useToast } from '@/components/ui/use-toast';
-import { z } from 'zod';
-
-// Validation schemas
-const signInSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-const signUpSchema = z.object({
-  email: z.string().email('Please enter a valid email address').max(255, 'Email is too long'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmPassword: z.string(),
-  firstName: z.string().min(1, 'First name is required').max(50, 'First name is too long').trim(),
-  lastName: z.string().min(1, 'Last name is required').max(50, 'Last name is too long').trim(),
-  phone: z.string().regex(/^(\+?[0-9]{10,15})?$/, 'Invalid phone number format').optional().or(z.literal('')),
-  location: z.string().max(100, 'Location is too long').optional(),
-  dateOfBirth: z.string().optional(),
-  role: z.enum(['student', 'parent', 'coach', 'admin'], { required_error: 'Please select a role' }),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
 
 const Auth = () => {
   const { signIn, signUp, user, loading } = useAuth();
-  const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -48,7 +20,6 @@ const Auth = () => {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [location, setLocation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Redirect if already authenticated
   if (!loading && user) {
@@ -59,25 +30,6 @@ const Auth = () => {
     e.preventDefault();
     if (isSubmitting) return;
     
-    setValidationErrors({});
-    
-    const result = signInSchema.safeParse({ email, password });
-    if (!result.success) {
-      const errors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0]) {
-          errors[err.path[0] as string] = err.message;
-        }
-      });
-      setValidationErrors(errors);
-      toast({
-        title: "Validation Error",
-        description: result.error.errors[0].message,
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
     await signIn(email, password);
     setIsSubmitting(false);
@@ -87,33 +39,8 @@ const Auth = () => {
     e.preventDefault();
     if (isSubmitting) return;
     
-    setValidationErrors({});
-    
-    const result = signUpSchema.safeParse({
-      email,
-      password,
-      confirmPassword,
-      firstName,
-      lastName,
-      phone,
-      location,
-      dateOfBirth,
-      role,
-    });
-    
-    if (!result.success) {
-      const errors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0]) {
-          errors[err.path[0] as string] = err.message;
-        }
-      });
-      setValidationErrors(errors);
-      toast({
-        title: "Validation Error",
-        description: result.error.errors[0].message,
-        variant: "destructive",
-      });
+    if (password !== confirmPassword) {
+      alert('Passwords do not match');
       return;
     }
 
@@ -172,12 +99,7 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      maxLength={255}
-                      className={validationErrors.email ? 'border-destructive' : ''}
                     />
-                    {validationErrors.email && (
-                      <p className="text-sm text-destructive">{validationErrors.email}</p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Password</Label>
@@ -188,11 +110,7 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className={validationErrors.password ? 'border-destructive' : ''}
                     />
-                    {validationErrors.password && (
-                      <p className="text-sm text-destructive">{validationErrors.password}</p>
-                    )}
                   </div>
                   <Button 
                     type="submit" 
@@ -215,12 +133,7 @@ const Auth = () => {
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         required
-                        maxLength={50}
-                        className={validationErrors.firstName ? 'border-destructive' : ''}
                       />
-                      {validationErrors.firstName && (
-                        <p className="text-sm text-destructive">{validationErrors.firstName}</p>
-                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="last-name">Last Name</Label>
@@ -230,31 +143,23 @@ const Auth = () => {
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         required
-                        maxLength={50}
-                        className={validationErrors.lastName ? 'border-destructive' : ''}
                       />
-                      {validationErrors.lastName && (
-                        <p className="text-sm text-destructive">{validationErrors.lastName}</p>
-                      )}
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="role">I am a...</Label>
-                    <Select value={role} onValueChange={(value: 'student' | 'parent' | 'coach' | 'admin') => setRole(value)}>
-                      <SelectTrigger className={validationErrors.role ? 'border-destructive' : ''}>
+                    <Select value={role} onValueChange={(value: any) => setRole(value)}>
+                      <SelectTrigger>
                         <SelectValue placeholder="Select your role" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="parent">Parent</SelectItem>
                         <SelectItem value="coach">Coach</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin">Administrator</SelectItem>
                       </SelectContent>
                     </Select>
-                    {validationErrors.role && (
-                      <p className="text-sm text-destructive">{validationErrors.role}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -266,32 +171,22 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      maxLength={255}
-                      className={validationErrors.email ? 'border-destructive' : ''}
                     />
-                    {validationErrors.email && (
-                      <p className="text-sm text-destructive">{validationErrors.email}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number (optional)</Label>
+                    <Label htmlFor="phone">Phone Number</Label>
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="+1234567890"
+                      placeholder="(555) 123-4567"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      maxLength={15}
-                      className={validationErrors.phone ? 'border-destructive' : ''}
                     />
-                    {validationErrors.phone && (
-                      <p className="text-sm text-destructive">{validationErrors.phone}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="date-of-birth">Date of Birth (optional)</Label>
+                    <Label htmlFor="date-of-birth">Date of Birth</Label>
                     <Input
                       id="date-of-birth"
                       type="date"
@@ -301,18 +196,13 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="location">Location (optional)</Label>
+                    <Label htmlFor="location">Location</Label>
                     <Input
                       id="location"
                       placeholder="City, State"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      maxLength={100}
-                      className={validationErrors.location ? 'border-destructive' : ''}
                     />
-                    {validationErrors.location && (
-                      <p className="text-sm text-destructive">{validationErrors.location}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -324,14 +214,7 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className={validationErrors.password ? 'border-destructive' : ''}
                     />
-                    {validationErrors.password && (
-                      <p className="text-sm text-destructive">{validationErrors.password}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      8+ characters with uppercase, lowercase, and number
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -343,11 +226,7 @@ const Auth = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
-                      className={validationErrors.confirmPassword ? 'border-destructive' : ''}
                     />
-                    {validationErrors.confirmPassword && (
-                      <p className="text-sm text-destructive">{validationErrors.confirmPassword}</p>
-                    )}
                   </div>
 
                   <Button 
