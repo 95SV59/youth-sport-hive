@@ -29,7 +29,7 @@ const signUpSchema = z.object({
   phone: z.string().regex(/^(\+?[0-9]{10,15})?$/, 'Invalid phone number format').optional().or(z.literal('')),
   location: z.string().max(100, 'Location is too long').optional(),
   dateOfBirth: z.string().optional(),
-  role: z.enum(['student', 'parent', 'coach', 'admin'], { required_error: 'Please select a role' }),
+  role: z.enum(['student', 'parent', 'coach'], { required_error: 'Please select a role' }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -43,7 +43,7 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [role, setRole] = useState<'student' | 'parent' | 'coach' | 'admin'>('student');
+  const [role, setRole] = useState<'student' | 'parent' | 'coach'>('student');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [location, setLocation] = useState('');
@@ -241,7 +241,7 @@ const Auth = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="role">I am a...</Label>
-                    <Select value={role} onValueChange={(value: 'student' | 'parent' | 'coach' | 'admin') => setRole(value)}>
+                    <Select value={role} onValueChange={(value: 'student' | 'parent' | 'coach') => setRole(value)}>
                       <SelectTrigger className={validationErrors.role ? 'border-destructive' : ''}>
                         <SelectValue placeholder="Select your role" />
                       </SelectTrigger>
@@ -249,7 +249,6 @@ const Auth = () => {
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="parent">Parent</SelectItem>
                         <SelectItem value="coach">Coach</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
                     {validationErrors.role && (
