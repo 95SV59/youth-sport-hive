@@ -7,9 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Cache duration in hours
-const CACHE_DURATION_HOURS = 6;
-
 // Advanced scoring weights
 const SCORING_WEIGHTS = {
   aiConfidence: 0.25,
@@ -21,8 +18,9 @@ const SCORING_WEIGHTS = {
 
 // Calculate profile match score
 function calculateProfileMatchScore(userContext: any, sport: string): number {
-  let score = 0.5;
+  let score = 0.5; // baseline
   
+  // Age appropriateness
   const ageScores: Record<string, number[]> = {
     basketball: [10, 35],
     soccer: [8, 40],
@@ -39,6 +37,7 @@ function calculateProfileMatchScore(userContext: any, sport: string): number {
     score += 0.2;
   }
   
+  // Budget match
   const sportCosts: Record<string, number> = {
     basketball: 30,
     soccer: 25,
@@ -55,23 +54,24 @@ function calculateProfileMatchScore(userContext: any, sport: string): number {
     score += 0.2;
   }
   
+  // Experience level match
   if (userContext.eventsAttended > 5) {
-    score += 0.1;
+    score += 0.1; // More experienced users
   }
   
   return Math.min(1.0, score);
 }
 
-// Calculate diversity bonus
+// Calculate diversity bonus (encourage trying new sports)
 function calculateDiversityBonus(userPreferences: any[], sport: string): number {
   const preference = userPreferences.find(p => p.sport_type === sport);
   if (!preference || preference.interaction_count === 0) {
-    return 0.8;
+    return 0.8; // High bonus for unexplored sports
   }
   if (preference.interaction_count < 3) {
-    return 0.5;
+    return 0.5; // Medium bonus for rarely tried
   }
-  return 0.2;
+  return 0.2; // Low bonus for familiar sports
 }
 
 // Get active A/B test variant
@@ -86,6 +86,7 @@ async function getABTestVariant(supabase: any, experimentName: string): Promise<
     return { variant_name: 'control', config: {} };
   }
   
+  // Weighted random selection
   const totalWeight = experiments.reduce((sum: number, exp: any) => sum + (exp.weight || 0), 0);
   let random = Math.random() * totalWeight;
   
@@ -119,59 +120,64 @@ serve(async (req) => {
       );
     }
 
-    // FAST PATH: Check cache first before any other operations
-    if (!forceNewRecommendation) {
-      const cacheThreshold = new Date(Date.now() - CACHE_DURATION_HOURS * 60 * 60 * 1000).toISOString();
-      
-      const { data: cachedRecommendations } = await supabase
-        .from('recommendations')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', cacheThreshold)
-        .order('created_at', { ascending: false })
-        .limit(3);
+    // Get A/B test variant
+    const abVariant = await getABTestVariant(supabase, 'recommendation_strategy');
+    console.log('Using A/B variant:', abVariant.variant_name);
 
-      if (cachedRecommendations && cachedRecommendations.length > 0) {
-        console.log('Returning cached recommendations for user:', userId);
-        return new Response(
-          JSON.stringify({ 
-            recommendations: cachedRecommendations,
-            cached: true,
-            cacheAge: Math.round((Date.now() - new Date(cachedRecommendations[0].created_at).getTime()) / 60000)
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
+    // Get user profile data
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
 
-    // Parallel data fetching for performance
-    const [
-      profileResult,
-      statsResult,
-      eventHistoryResult,
-      preferencesResult,
-      abVariant
-    ] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', profileId).single(),
-      supabase.from('gamification_stats').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.from('event_registrations').select('event:events(sport_type)').eq('user_id', userId).eq('attended', true),
-      supabase.from('user_sport_preferences').select('*').eq('user_id', userId),
-      getABTestVariant(supabase, 'recommendation_strategy')
-    ]);
-
-    const profile = profileResult.data;
-    if (!profile) {
+    if (profileError || !profile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const stats = statsResult.data;
-    const eventHistory = eventHistoryResult.data;
-    const userPreferences = preferencesResult.data || [];
+    // Get user's gamification stats
+    const { data: stats } = await supabase
+      .from('gamification_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    console.log('Using A/B variant:', abVariant.variant_name);
+    // Get user's event history
+    const { data: eventHistory } = await supabase
+      .from('event_registrations')
+      .select('event:events(sport_type)')
+      .eq('user_id', userId)
+      .eq('attended', true);
+
+    // Get user sport preferences (learning data)
+    const { data: userPreferences } = await supabase
+      .from('user_sport_preferences')
+      .select('*')
+      .eq('user_id', userId);
+
+    // Check if we have recent recommendations (unless forced)
+    if (!forceNewRecommendation) {
+      const { data: recentRecommendations } = await supabase
+        .from('recommendations')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentRecommendations && recentRecommendations.length > 0) {
+        return new Response(
+          JSON.stringify({ 
+            recommendations: recentRecommendations,
+            cached: true 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Prepare user context
     const attendedSports = eventHistory?.map((e: any) => e.event?.sport_type).filter(Boolean) || [];
@@ -190,41 +196,44 @@ serve(async (req) => {
       totalPoints: stats?.total_points || 0,
       eventsAttended: stats?.events_attended || 0,
       attendedSports,
-      userPreferences
+      userPreferences: userPreferences || []
     };
 
+    // Generate multiple recommendations based on A/B variant
     const numberOfRecs = abVariant.config?.count || 3;
-    const aiPrompt = `You are an advanced AI sports recommendation expert. Based on the user profile, recommend ${numberOfRecs} different personalized sports activities.
+    const aiPrompt = `
+    You are an advanced AI sports recommendation expert. Based on the user profile, recommend ${numberOfRecs} different personalized sports activities.
 
-User Profile:
-- Age: ${userContext.age}
-- Location: ${userContext.location}
-- Current Level: ${userContext.currentLevel}
-- Skill Level: ${userContext.skillLevel}
-- Events Attended: ${userContext.eventsAttended}
-- Previously Attended Sports: ${attendedSports.join(', ') || 'None'}
-- Preferred Sports: ${userContext.preferredSports.join(', ') || 'None specified'}
-- Budget Range: $${userContext.budgetMin} - $${userContext.budgetMax}
-- Fitness Goals: ${userContext.fitnessGoals.join(', ') || 'General fitness'}
-- Activity Preferences: ${userContext.activityPreferences.join(', ') || 'Open to all'}
+    User Profile:
+    - Age: ${userContext.age}
+    - Location: ${userContext.location}
+    - Current Level: ${userContext.currentLevel}
+    - Skill Level: ${userContext.skillLevel}
+    - Events Attended: ${userContext.eventsAttended}
+    - Previously Attended Sports: ${attendedSports.join(', ') || 'None'}
+    - Preferred Sports: ${userContext.preferredSports.join(', ') || 'None specified'}
+    - Budget Range: $${userContext.budgetMin} - $${userContext.budgetMax}
+    - Fitness Goals: ${userContext.fitnessGoals.join(', ') || 'General fitness'}
+    - Activity Preferences: ${userContext.activityPreferences.join(', ') || 'Open to all'}
 
-Available sports: basketball, soccer, tennis, swimming, volleyball, baseball, track_field, martial_arts, gymnastics, other
+    Available sports: basketball, soccer, tennis, swimming, volleyball, baseball, track_field, martial_arts, gymnastics, other
 
-${abVariant.config?.focus === 'diversity' ? 'FOCUS: Recommend sports they haven\'t tried before.' : ''}
-${abVariant.config?.focus === 'optimization' ? 'FOCUS: Recommend sports that best match their stated preferences.' : ''}
+    ${abVariant.config?.focus === 'diversity' ? 'FOCUS: Recommend sports they haven\'t tried before.' : ''}
+    ${abVariant.config?.focus === 'optimization' ? 'FOCUS: Recommend sports that best match their stated preferences.' : ''}
 
-Provide ${numberOfRecs} recommendations in this JSON format:
-{
-  "recommendations": [
+    Provide ${numberOfRecs} recommendations in this JSON format:
     {
-      "sport": "sport_category",
-      "reasoning": "compelling 2-3 sentence explanation",
-      "confidence": 85,
-      "benefits": ["benefit1", "benefit2", "benefit3"],
-      "matchFactors": ["factor1", "factor2"]
+      "recommendations": [
+        {
+          "sport": "sport_category",
+          "reasoning": "compelling 2-3 sentence explanation",
+          "confidence": 85,
+          "benefits": ["benefit1", "benefit2", "benefit3"],
+          "matchFactors": ["factor1", "factor2"]
+        }
+      ]
     }
-  ]
-}`;
+    `;
 
     // Call Lovable AI Gateway
     const lovableAIResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -236,7 +245,7 @@ Provide ${numberOfRecs} recommendations in this JSON format:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'You are an advanced sports recommendation AI. Return ONLY valid JSON, no markdown.' },
+          { role: 'system', content: 'You are an advanced sports recommendation AI that provides personalized, data-driven suggestions.' },
           { role: 'user', content: aiPrompt }
         ],
       }),
@@ -249,26 +258,25 @@ Provide ${numberOfRecs} recommendations in this JSON format:
     }
 
     const aiResult = await lovableAIResponse.json();
-    
-    // Extract JSON from markdown code blocks if present
-    let aiContent = aiResult.choices[0].message.content;
-    const codeBlockMatch = aiContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (codeBlockMatch) {
-      aiContent = codeBlockMatch[1].trim();
-    }
-    
-    const aiRecommendations = JSON.parse(aiContent);
+    const aiRecommendations = JSON.parse(aiResult.choices[0].message.content);
 
-    // Calculate scores and save recommendations in parallel
+    // Calculate advanced scores for each recommendation
     const scoredRecommendations = await Promise.all(
       aiRecommendations.recommendations.map(async (rec: any) => {
         const aiConfidence = rec.confidence / 100;
-        const preference = userPreferences.find((p: any) => p.sport_type === rec.sport);
+        
+        // Get user preference for this sport
+        const preference = userPreferences?.find((p: any) => p.sport_type === rec.sport);
         const userPreferenceScore = preference?.preference_score || 0.5;
+        
+        // Calculate component scores
         const profileMatchScore = calculateProfileMatchScore(userContext, rec.sport);
-        const diversityBonus = calculateDiversityBonus(userPreferences, rec.sport);
+        const diversityBonus = calculateDiversityBonus(userPreferences || [], rec.sport);
+        
+        // Trending bonus (placeholder - could be based on recent platform activity)
         const trendingBonus = 0.5;
         
+        // Calculate final weighted score
         const finalScore = (
           aiConfidence * SCORING_WEIGHTS.aiConfidence +
           userPreferenceScore * SCORING_WEIGHTS.userPreference +
@@ -277,6 +285,7 @@ Provide ${numberOfRecs} recommendations in this JSON format:
           trendingBonus * SCORING_WEIGHTS.trendingBonus
         );
 
+        // Save recommendation to database
         const { data: savedRec, error: saveError } = await supabase
           .from('recommendations')
           .insert({
@@ -314,6 +323,7 @@ Provide ${numberOfRecs} recommendations in this JSON format:
       })
     );
 
+    // Sort by final score
     scoredRecommendations.sort((a, b) => 
       (b.confidence_score || 0) - (a.confidence_score || 0)
     );
