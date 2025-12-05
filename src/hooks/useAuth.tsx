@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   profile: any;
+  isAdmin: boolean;
   refetchProfile: () => Promise<void>;
 }
 
@@ -21,7 +22,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
+
+  const checkAdminStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+        return false;
+      }
+      
+      const adminStatus = !!data;
+      setIsAdmin(adminStatus);
+      return adminStatus;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+      return false;
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -46,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data) {
         setProfile(data);
         
+        // Check admin status from admin_users table (server-side verified)
+        await checkAdminStatus(userId);
+        
         // Auto-create coach profile if user is a coach but doesn't have one
         if (data.role === 'coach') {
           try {
@@ -58,7 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!coachData) {
               await supabase.from('coaches').insert({
                 user_id: userId,
-                profile_id: data.id,
                 specializations: [],
                 experience_years: 0
               });
@@ -68,32 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // Auto-create admin user if user is an admin but doesn't have one
-        if (data.role === 'admin') {
-          try {
-            const { data: adminData } = await supabase
-              .from('admin_users')
-              .select('id')
-              .eq('user_id', userId)
-              .maybeSingle();
-              
-            if (!adminData) {
-              await supabase.from('admin_users').insert({
-                user_id: userId,
-                profile_id: data.id,
-                permissions: ['read', 'write', 'admin']
-              });
-            }
-          } catch (error) {
-            console.error('Error creating admin profile:', error);
-          }
-        }
+        // SECURITY: Removed auto-admin creation - admins must be created through secure backend process only
       } else {
         console.log('No profile found for user:', userId);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
+      setIsAdmin(false);
       // Don't leave user stuck in loading state
       setLoading(false);
     }
@@ -120,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
+          setIsAdmin(false);
         }
         
         if (isMounted) {
@@ -217,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      setIsAdmin(false);
       toast({
         title: "Signed Out",
         description: "You have been successfully signed out.",
@@ -234,6 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     profile,
+    isAdmin,
     refetchProfile
   };
 
