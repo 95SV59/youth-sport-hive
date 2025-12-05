@@ -89,6 +89,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "coaches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_coach_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       daily_challenges: {
@@ -188,6 +195,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "event_registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_coach_profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       events: {
@@ -258,6 +272,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "coaches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "public_coach_profiles"
+            referencedColumns: ["coach_id"]
           },
         ]
       }
@@ -682,7 +703,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_coach_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          coach_id: string | null
+          experience_years: number | null
+          first_name: string | null
+          hourly_rate: number | null
+          id: string | null
+          is_verified: boolean | null
+          last_name: string | null
+          rating: number | null
+          specializations: string[] | null
+          total_reviews: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
