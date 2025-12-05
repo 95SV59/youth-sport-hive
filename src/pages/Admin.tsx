@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { Event, Coach, Profile } from '@/types';
 
 const Admin = () => {
-  const { profile } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [users, setUsers] = useState<Profile[]>([]);
@@ -23,14 +23,17 @@ const Admin = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (profile?.role === 'admin') {
+    // Only fetch admin data if user is verified admin from admin_users table
+    if (!authLoading && isAdmin) {
       fetchAdminData();
+    } else if (!authLoading && !isAdmin) {
+      setLoading(false);
     }
-  }, [profile]);
+  }, [isAdmin, authLoading]);
 
   const fetchAdminData = async () => {
     try {
-      // Fetch pending events
+      // Fetch pending events - RLS will enforce admin access
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select(`
@@ -50,7 +53,7 @@ const Admin = () => {
 
       if (eventsError) throw eventsError;
 
-      // Fetch coaches needing verification
+      // Fetch coaches needing verification - RLS will enforce admin access
       const { data: coachesData, error: coachesError } = await supabase
         .from('coaches')
         .select(`
@@ -69,7 +72,7 @@ const Admin = () => {
 
       if (coachesError) throw coachesError;
 
-      // Fetch all users
+      // Fetch all users - RLS will enforce admin access
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
         .select('*')
@@ -139,8 +142,9 @@ const Admin = () => {
     }
   };
 
-  const updateUserRole = async (userId: string, newRole: 'admin' | 'student' | 'parent' | 'coach') => {
+  const updateUserRole = async (userId: string, newRole: 'student' | 'parent' | 'coach') => {
     try {
+      // Update role in profiles table (for backwards compatibility)
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
@@ -163,7 +167,20 @@ const Admin = () => {
     }
   };
 
-  if (profile?.role !== 'admin') {
+  // Show loading while checking auth status
+  if (authLoading || loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // SECURITY: Check isAdmin from useAuth which verifies against admin_users table
+  // This is server-verified via RLS, not client-side manipulation
+  if (!isAdmin) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
@@ -178,16 +195,6 @@ const Admin = () => {
               </CardDescription>
             </CardHeader>
           </Card>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
       </Layout>
     );
