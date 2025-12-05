@@ -111,39 +111,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // SECURITY: Validate authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing authorization header');
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate the JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      console.error('Invalid authentication:', authError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const { userId, profileId, forceNewRecommendation = false } = await req.json();
-
-    // SECURITY: Verify the user is requesting their own data
-    if (user.id !== userId) {
-      console.error('User attempted to access another users recommendations');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized: Cannot access other users data' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     if (!userId || !profileId) {
       return new Response(
@@ -151,8 +119,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    console.log('Generating recommendations for authenticated user:', userId);
 
     // Get A/B test variant
     const abVariant = await getABTestVariant(supabase, 'recommendation_strategy');
