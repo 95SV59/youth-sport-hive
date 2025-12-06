@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,101 +6,108 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Trophy, Users, Target, TrendingUp, Clock, Lightbulb, Sparkles } from 'lucide-react';
+import { Calendar, Trophy, Target, TrendingUp, Clock, Lightbulb, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import RecommendationCard from '@/components/RecommendationCard';
 import Layout from '@/components/Layout';
+
+interface DashboardStats {
+  total_points: number;
+  current_level: number;
+  events_attended: number;
+  current_streak: number;
+  favorite_sport?: string;
+}
 
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const { recommendations } = useRecommendations();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchData = async () => {
-      if (!profile || !isMounted) return;
-      
-      await fetchDashboardData();
-    };
-    
-    fetchData();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [profile?.id]); // Only depend on profile ID to prevent unnecessary refetches
-
-  const fetchDashboardData = async () => {
-    if (!profile) {
+  const fetchDashboardData = useCallback(async () => {
+    if (!user?.id) {
       setLoading(false);
       return;
     }
 
     try {
-      // Use Promise.all for parallel queries with timeout
-      const queries = [
-        // Fetch gamification stats
+      // Parallel queries with individual error handling
+      const [statsResult, eventsResult, achievementsResult] = await Promise.allSettled([
         supabase
           .from('gamification_stats')
-          .select('*')
-          .eq('user_id', user?.id)
-          .maybeSingle() as any,
-
-        // Fetch upcoming events (registered events)
+          .select('total_points, current_level, events_attended, current_streak')
+          .eq('user_id', user.id)
+          .maybeSingle(),
         supabase
           .from('event_registrations')
-          .select('*')
-          .eq('user_id', user?.id)
+          .select(`
+            id,
+            status,
+            event_id,
+            events:event_id (
+              id,
+              title,
+              start_time,
+              location,
+              cost,
+              sport_category
+            )
+          `)
+          .eq('user_id', user.id)
           .eq('status', 'confirmed')
-          .order('created_at', { ascending: true })
-          .limit(3) as any,
-
-        // Fetch recent achievements
+          .order('created_at', { ascending: false })
+          .limit(3),
         supabase
           .from('user_achievements')
           .select('*')
-          .eq('user_id', user?.id)
+          .eq('user_id', user.id)
           .order('earned_at', { ascending: false })
-          .limit(3) as any
-      ];
+          .limit(3)
+      ]);
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Dashboard data timeout')), 15000)
-      );
+      // Process results safely
+      if (statsResult.status === 'fulfilled' && statsResult.value.data) {
+        setStats(statsResult.value.data);
+      }
 
-      const [statsResult, eventsResult, achievementsResult] = await Promise.race([
-        Promise.all(queries),
-        timeoutPromise
-      ]) as any;
+      if (eventsResult.status === 'fulfilled' && eventsResult.value.data) {
+        setUpcomingEvents(eventsResult.value.data.filter((e: any) => e.events));
+      }
 
-      setStats(statsResult.data || null);
-      setUpcomingEvents(eventsResult.data || []);
-      setAchievements(achievementsResult.data || []);
-
+      if (achievementsResult.status === 'fulfilled' && achievementsResult.value.data) {
+        setAchievements(achievementsResult.value.data);
+      }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      // Set default values to prevent blank screen
-      setStats(null);
-      setUpcomingEvents([]);
-      setAchievements([]);
+      console.error('Dashboard data fetch error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (user?.id && isMounted) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, fetchDashboardData]);
 
   const getLevelProgress = () => {
     if (!stats) return 0;
-    const pointsForNextLevel = stats.current_level * 100;
-    const pointsInCurrentLevel = stats.total_points % 100;
-    return (pointsInCurrentLevel / 100) * 100;
+    const pointsInCurrentLevel = (stats.total_points || 0) % 100;
+    return pointsInCurrentLevel;
   };
 
-  const formatSportCategory = (category: string) => {
+  const formatSportCategory = (category: string | null | undefined) => {
+    if (!category) return 'General';
     return category.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
@@ -109,8 +116,11 @@ const Dashboard = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex items-center justify-center h-full min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground text-sm">Loading dashboard...</p>
+          </div>
         </div>
       </Layout>
     );
@@ -118,18 +128,18 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="p-8 space-y-8">
+      <div className="p-6 md:p-8 space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {profile?.first_name}!
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+            Welcome back{profile?.first_name ? `, ${profile.first_name}` : ''}!
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-1">
             Here's what's happening in your sports journey
           </p>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Points</CardTitle>
@@ -150,9 +160,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.events_attended || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                This year
-              </p>
+              <p className="text-xs text-muted-foreground">This year</p>
             </CardContent>
           </Card>
 
@@ -163,9 +171,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.current_streak || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Days active
-              </p>
+              <p className="text-xs text-muted-foreground">Days active</p>
             </CardContent>
           </Card>
 
@@ -175,12 +181,10 @@ const Dashboard = () => {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {stats?.favorite_sport ? formatSportCategory(stats.favorite_sport) : 'None'}
+              <div className="text-xl font-bold truncate">
+                {stats?.favorite_sport ? formatSportCategory(stats.favorite_sport) : 'None yet'}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Most played
-              </p>
+              <p className="text-xs text-muted-foreground">Most played</p>
             </CardContent>
           </Card>
         </div>
@@ -194,16 +198,16 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Level {stats?.current_level || 1}</span>
                 <span className="text-sm text-muted-foreground">
-                  {Math.floor(getLevelProgress())}% to next level
+                  {getLevelProgress()}% to next level
                 </span>
               </div>
               <Progress value={getLevelProgress()} className="w-full" />
               <p className="text-xs text-muted-foreground">
-                Keep participating in events to earn more points and level up!
+                Keep participating in events to earn more points!
               </p>
             </div>
           </CardContent>
@@ -220,24 +224,20 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {recommendations.slice(0, 2).map((recommendation) => (
-                  <div key={recommendation.id} className="p-4 bg-primary/5 rounded-lg border">
+                {recommendations.slice(0, 2).map((rec) => (
+                  <div key={rec.id} className="p-4 bg-primary/5 rounded-lg border">
                     <h4 className="font-semibold text-primary">
-                      {(recommendation.sport_type || recommendation.recommendation_data?.sport || 'Unknown').split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                      ).join(' ')}
+                      {formatSportCategory(rec.sport_type || rec.recommendation_data?.sport)}
                     </h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {(recommendation.recommendation_data?.reasoning || '').substring(0, 100)}...
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {rec.recommendation_data?.reasoning || 'Personalized recommendation based on your profile'}
                     </p>
                     <div className="flex justify-between items-center mt-3">
                       <Badge variant="outline">
-                        {Math.round(recommendation.confidence_score * 100)}% match
+                        {Math.round((rec.confidence_score || 0) * 100)}% match
                       </Badge>
                       <Link to="/recommendations">
-                        <Button size="sm" variant="outline">
-                          View Details
-                        </Button>
+                        <Button size="sm" variant="outline">View Details</Button>
                       </Link>
                     </div>
                   </div>
@@ -255,13 +255,13 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upcoming Events */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center space-x-2">
                 <Calendar className="h-5 w-5" />
-                <span>Upcoming Events</span>
+                <span>Your Events</span>
               </CardTitle>
               <Link to="/events">
                 <Button variant="outline" size="sm">View All</Button>
@@ -269,34 +269,35 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               {upcomingEvents.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {upcomingEvents.map((registration) => (
-                    <div key={registration.id} className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                      <div className="space-y-1">
-                        <p className="font-medium text-sm">{registration.events.title}</p>
-                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                    <div key={registration.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{registration.events?.title || 'Event'}</p>
+                        <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
                           <span className="flex items-center">
                             <Clock className="h-3 w-3 mr-1" />
-                            {new Date(registration.events.start_time).toLocaleDateString()}
+                            {registration.events?.start_time 
+                              ? new Date(registration.events.start_time).toLocaleDateString()
+                              : 'TBD'}
                           </span>
                           <Badge variant="secondary" className="text-xs">
-                            {formatSportCategory(registration.events.sport_category)}
+                            {formatSportCategory(registration.events?.sport_category)}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">{registration.events.location}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">${registration.events.cost}</p>
+                      <div className="text-right ml-2">
+                        <p className="text-sm font-medium">${registration.events?.cost || 0}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No upcoming events</p>
+                <div className="text-center py-6">
+                  <Calendar className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No registered events yet</p>
                   <Link to="/events">
-                    <Button className="mt-4">Discover Events</Button>
+                    <Button className="mt-3" size="sm">Discover Events</Button>
                   </Link>
                 </div>
               )}
@@ -308,7 +309,7 @@ const Dashboard = () => {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center space-x-2">
                 <Trophy className="h-5 w-5" />
-                <span>Recent Achievements</span>
+                <span>Achievements</span>
               </CardTitle>
               <Link to="/challenges">
                 <Button variant="outline" size="sm">View All</Button>
@@ -316,33 +317,38 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               {achievements.length > 0 ? (
-                <div className="space-y-4">
-                  {achievements.map((achievement) => (
-                    <div key={achievement.id} className="flex items-center space-x-4 p-4 bg-muted rounded-lg">
-                      <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center">
-                        <Trophy className="h-6 w-6 text-primary-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{achievement.title}</p>
-                        <p className="text-xs text-muted-foreground">{achievement.description}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {achievement.badge_type}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            +{achievement.points_awarded} points
-                          </span>
+                <div className="space-y-3">
+                  {achievements.map((achievement) => {
+                    const data = achievement.achievement_data || {};
+                    return (
+                      <div key={achievement.id} className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
+                        <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                          <Trophy className="h-5 w-5 text-primary-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{data.title || achievement.achievement_type}</p>
+                          <p className="text-xs text-muted-foreground truncate">{data.description || 'Achievement unlocked!'}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {achievement.achievement_type}
+                            </Badge>
+                            {data.points && (
+                              <span className="text-xs text-muted-foreground">
+                                +{data.points} points
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No achievements yet</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Start participating in events to earn your first achievement!
+                <div className="text-center py-6">
+                  <Trophy className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No achievements yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Start participating to earn achievements!
                   </p>
                 </div>
               )}

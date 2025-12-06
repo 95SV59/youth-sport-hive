@@ -3,18 +3,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   Calendar,
   Users,
   Trophy,
-  MapPin,
-  Star,
   Bell,
-  Settings,
   LogOut,
-  UserCheck,
   Shield,
   Plus,
   User,
@@ -23,12 +19,21 @@ import {
 } from 'lucide-react';
 
 const Sidebar = () => {
-  const { user, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth', { replace: true });
+  };
+
   const getNavigationItems = () => {
+    const role = profile?.role || 'student';
+    
+    // Base items for all users
     const baseItems = [
       { icon: Home, label: 'Dashboard', path: '/dashboard' },
       { icon: Calendar, label: 'Events', path: '/events' },
@@ -38,21 +43,23 @@ const Sidebar = () => {
       { icon: Bell, label: 'Notifications', path: '/notifications' },
     ];
 
-    if (profile?.role === 'coach') {
-      baseItems.splice(3, 0, 
+    // Coach-specific items
+    if (role === 'coach') {
+      baseItems.splice(2, 0, 
         { icon: Plus, label: 'Create Event', path: '/create-event' },
         { icon: Users, label: 'My Events', path: '/my-events' }
       );
+      baseItems.push({ icon: BarChart3, label: 'Analytics', path: '/analytics' });
     }
 
-    if (profile?.role === 'admin') {
-      baseItems.push(
-        { icon: Shield, label: 'Admin Panel', path: '/admin' }
+    // Admin-specific items
+    if (role === 'admin') {
+      baseItems.splice(2, 0,
+        { icon: Plus, label: 'Create Event', path: '/create-event' },
+        { icon: Users, label: 'My Events', path: '/my-events' }
       );
-    }
-
-    if (profile?.role === 'coach' || profile?.role === 'admin') {
       baseItems.push(
+        { icon: Shield, label: 'Admin Panel', path: '/admin' },
         { icon: BarChart3, label: 'Analytics', path: '/analytics' }
       );
     }
@@ -71,8 +78,12 @@ const Sidebar = () => {
     }
   };
 
+  const getRoleLabel = (role: string) => {
+    return role ? role.charAt(0).toUpperCase() + role.slice(1) : 'User';
+  };
+
   return (
-    <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col min-h-screen">
       <div className="p-6 border-b border-sidebar-border">
         <h1 className="text-xl font-bold text-sidebar-foreground">Youth Sports</h1>
         <p className="text-sm text-sidebar-foreground/70">Platform</p>
@@ -81,24 +92,24 @@ const Sidebar = () => {
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center space-x-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={profile?.avatar_url} />
+            <AvatarImage src={profile?.avatar_url || undefined} />
             <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
-              {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+              {profile?.first_name?.[0] || 'U'}{profile?.last_name?.[0] || ''}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {profile?.first_name} {profile?.last_name}
+              {profile?.first_name || 'User'} {profile?.last_name || ''}
             </p>
-            <Badge variant="secondary" className={`text-xs mt-1 ${getRoleColor(profile?.role)}`}>
-              {profile?.role}
+            <Badge variant="secondary" className={`text-xs mt-1 ${getRoleColor(profile?.role || '')}`}>
+              {getRoleLabel(profile?.role || '')}
             </Badge>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+      <nav className="flex-1 p-4 overflow-y-auto">
+        <ul className="space-y-1">
           {navigationItems.map((item) => (
             <li key={item.path}>
               <Link to={item.path}>
@@ -121,7 +132,7 @@ const Sidebar = () => {
 
       <div className="p-4 border-t border-sidebar-border">
         <Button
-          onClick={signOut}
+          onClick={handleSignOut}
           variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >

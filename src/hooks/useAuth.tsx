@@ -1,7 +1,20 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+
+interface Profile {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: string;
+  phone: string | null;
+  date_of_birth: string | null;
+  location: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -10,143 +23,155 @@ interface AuthContextType {
   signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  profile: any;
+  profile: Profile | null;
   refetchProfile: () => Promise<void>;
+  getRoleBasedRedirect: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Role-based redirect mapping
+const ROLE_REDIRECTS: Record<string, string> = {
+  admin: '/admin',
+  coach: '/dashboard',
+  parent: '/dashboard',
+  student: '/dashboard',
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const { toast } = useToast();
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
-      // Add timeout to prevent hanging
-      const profilePromise = supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
-      );
-
-      const { data, error } = await Promise.race([
-        profilePromise,
-        timeoutPromise
-      ]) as any;
       
-      if (error) throw error;
+      if (error) {
+        console.error('Profile fetch error:', error);
+        return null;
+      }
       
       if (data) {
         setProfile(data);
         
         // Auto-create coach profile if user is a coach but doesn't have one
         if (data.role === 'coach') {
-          try {
-            const { data: coachData } = await supabase
-              .from('coaches')
-              .select('id')
-              .eq('user_id', userId)
-              .maybeSingle();
-              
-            if (!coachData) {
-              await supabase.from('coaches').insert({
-                user_id: userId,
-                profile_id: data.id,
-                specializations: [],
-                experience_years: 0
-              });
+          setTimeout(async () => {
+            try {
+              const { data: coachData } = await supabase
+                .from('coaches')
+                .select('id')
+                .eq('user_id', userId)
+                .maybeSingle();
+                
+              if (!coachData) {
+                await supabase.from('coaches').insert({
+                  user_id: userId,
+                  specializations: [],
+                  experience_years: 0
+                });
+              }
+            } catch (error) {
+              console.error('Error creating coach profile:', error);
             }
-          } catch (error) {
-            console.error('Error creating coach profile:', error);
-          }
+          }, 0);
         }
         
         // Auto-create admin user if user is an admin but doesn't have one
         if (data.role === 'admin') {
-          try {
-            const { data: adminData } = await supabase
-              .from('admin_users')
-              .select('id')
-              .eq('user_id', userId)
-              .maybeSingle();
-              
-            if (!adminData) {
-              await supabase.from('admin_users').insert({
-                user_id: userId,
-                profile_id: data.id,
-                permissions: ['read', 'write', 'admin']
-              });
+          setTimeout(async () => {
+            try {
+              const { data: adminData } = await supabase
+                .from('admin_users')
+                .select('id')
+                .eq('user_id', userId)
+                .maybeSingle();
+                
+              if (!adminData) {
+                await supabase.from('admin_users').insert({
+                  user_id: userId,
+                  permissions: ['read', 'write', 'admin']
+                });
+              }
+            } catch (error) {
+              console.error('Error creating admin profile:', error);
             }
-          } catch (error) {
-            console.error('Error creating admin profile:', error);
-          }
+          }, 0);
         }
-      } else {
-        console.log('No profile found for user:', userId);
+        
+        return data;
       }
+      
+      return null;
     } catch (error) {
       console.error('Error fetching profile:', error);
-      setProfile(null);
-      // Don't leave user stuck in loading state
-      setLoading(false);
+      return null;
     }
-  };
+  }, []);
 
-  const refetchProfile = async () => {
+  const refetchProfile = useCallback(async () => {
     if (user) {
       await fetchProfile(user.id);
     }
-  };
+  }, [user, fetchProfile]);
+
+  const getRoleBasedRedirect = useCallback((): string => {
+    if (!profile) return '/dashboard';
+    return ROLE_REDIRECTS[profile.role] || '/dashboard';
+  }, [profile]);
 
   useEffect(() => {
     let isMounted = true;
+    let initTimeout: NodeJS.Timeout;
 
-    // Set up auth state listener
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, newSession) => {
         if (!isMounted) return;
         
-        setSession(session);
-        setUser(session?.user ?? null);
+        // Synchronous state updates only
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
         
-        if (session?.user) {
-          await fetchProfile(session.user.id);
+        if (newSession?.user) {
+          // Defer profile fetch to avoid deadlock
+          setTimeout(() => {
+            if (isMounted) {
+              fetchProfile(newSession.user.id).finally(() => {
+                if (isMounted) setLoading(false);
+              });
+            }
+          }, 0);
         } else {
           setProfile(null);
-        }
-        
-        if (isMounted) {
-          setLoading(false);
+          if (isMounted) setLoading(false);
         }
       }
     );
 
-    // Get initial session with timeout
+    // THEN check for existing session
     const getInitialSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (!isMounted) return;
         
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
         
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        }
-        
-        if (isMounted) {
-          setLoading(false);
+        if (initialSession?.user) {
+          await fetchProfile(initialSession.user.id);
         }
       } catch (error) {
         console.error('Error getting initial session:', error);
+      } finally {
         if (isMounted) {
           setLoading(false);
         }
@@ -155,17 +180,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     getInitialSession();
 
+    // Safety timeout to prevent infinite loading
+    initTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Auth init timeout reached');
+        setLoading(false);
+      }
+    }, 8000);
+
     return () => {
       isMounted = false;
+      clearTimeout(initTimeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   const signUp = async (email: string, password: string, userData: any) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -180,6 +214,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: error.message,
           variant: "destructive",
         });
+        return { error };
+      }
+
+      // If auto-confirm is enabled, user will be signed in automatically
+      if (data.user && data.session) {
+        toast({
+          title: "Account Created!",
+          description: "Welcome! You've been signed in automatically.",
+        });
       } else {
         toast({
           title: "Success!",
@@ -187,8 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      return { error };
+      return { error: null };
     } catch (error: any) {
+      toast({
+        title: "Sign Up Error",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
       return { error };
     }
   };
@@ -206,23 +254,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: error.message,
           variant: "destructive",
         });
+        return { error };
       }
 
-      return { error };
+      toast({
+        title: "Welcome Back!",
+        description: "You've been signed in successfully.",
+      });
+
+      return { error: null };
     } catch (error: any) {
+      toast({
+        title: "Sign In Error",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
       return { error };
     }
   };
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setProfile(null);
       toast({
         title: "Signed Out",
         description: "You have been successfully signed out.",
       });
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -234,7 +299,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     profile,
-    refetchProfile
+    refetchProfile,
+    getRoleBasedRedirect
   };
 
   return (
