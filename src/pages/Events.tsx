@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,41 +8,48 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
-import { Calendar, MapPin, Users, Clock, DollarSign, Search, Filter } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, DollarSign, Search } from 'lucide-react';
 import { format } from 'date-fns';
-import { Event } from '@/types';
+import { Link } from 'react-router-dom';
+
+interface EventData {
+  id: string;
+  title: string;
+  description: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  cost: number;
+  max_participants: number;
+  current_participants: number;
+  sport_type: string;
+  sport_category: string | null;
+  difficulty_level: string | null;
+  age_min: number | null;
+  age_max: number | null;
+  status: string;
+  coach_id: string;
+}
 
 const Events = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sportFilter, setSportFilter] = useState('all');
   const [difficultyFilter, setDifficultyFilter] = useState('all');
+  const [registering, setRegistering] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('events')
-        .select(`
-          *,
-          coaches (
-            id,
-            rating,
-            profiles (
-              first_name,
-              last_name
-            )
-          )
-        `)
+        .select('*')
         .eq('status', 'approved')
         .gte('start_time', new Date().toISOString())
-        .order('start_time', { ascending: true });
+        .order('start_time', { ascending: true })
+        .limit(50);
 
       if (error) throw error;
       setEvents(data || []);
@@ -56,19 +63,47 @@ const Events = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleRegister = async (eventId: string) => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in to register for events",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    setRegistering(eventId);
     try {
+      // Check if already registered
+      const { data: existing } = await supabase
+        .from('event_registrations')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        toast({
+          title: "Already Registered",
+          description: "You are already registered for this event",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('event_registrations')
         .insert({
           event_id: eventId,
           user_id: user.id,
-          profile_id: user.id,
-          status: 'pending'
+          status: 'confirmed',
+          payment_status: 'pending'
         });
 
       if (error) throw error;
@@ -78,27 +113,30 @@ const Events = () => {
         description: "You have been registered for this event",
       });
 
-      // Refresh events to update participant count
       fetchEvents();
     } catch (error: any) {
       toast({
         title: "Registration Error",
-        description: error.message,
+        description: error.message || "Failed to register",
         variant: "destructive",
       });
+    } finally {
+      setRegistering(null);
     }
   };
 
   const filteredEvents = events.filter(event => {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSport = sportFilter === 'all' || event.sport_category === sportFilter;
+                         event.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSport = sportFilter === 'all' || 
+                        event.sport_category === sportFilter || 
+                        event.sport_type === sportFilter;
     const matchesDifficulty = difficultyFilter === 'all' || event.difficulty_level === difficultyFilter;
     
     return matchesSearch && matchesSport && matchesDifficulty;
   });
 
-  const getDifficultyColor = (level: string) => {
+  const getDifficultyColor = (level: string | null) => {
     switch (level) {
       case 'beginner': return 'bg-green-500/10 text-green-500 border-green-500/20';
       case 'intermediate': return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
@@ -107,11 +145,19 @@ const Events = () => {
     }
   };
 
+  const formatSportName = (sport: string | null) => {
+    if (!sport) return 'General';
+    return sport.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground text-sm">Loading events...</p>
+          </div>
         </div>
       </Layout>
     );
@@ -120,11 +166,9 @@ const Events = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Upcoming Events</h1>
-            <p className="text-muted-foreground">Discover and join youth sports events in your area</p>
-          </div>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Upcoming Events</h1>
+          <p className="text-muted-foreground">Discover and join youth sports events</p>
         </div>
 
         {/* Filters */}
@@ -139,7 +183,7 @@ const Events = () => {
             />
           </div>
           <Select value={sportFilter} onValueChange={setSportFilter}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full md:w-44">
               <SelectValue placeholder="All Sports" />
             </SelectTrigger>
             <SelectContent>
@@ -148,10 +192,12 @@ const Events = () => {
               <SelectItem value="basketball">Basketball</SelectItem>
               <SelectItem value="tennis">Tennis</SelectItem>
               <SelectItem value="swimming">Swimming</SelectItem>
+              <SelectItem value="volleyball">Volleyball</SelectItem>
+              <SelectItem value="baseball">Baseball</SelectItem>
             </SelectContent>
           </Select>
           <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full md:w-44">
               <SelectValue placeholder="All Levels" />
             </SelectTrigger>
             <SelectContent>
@@ -159,91 +205,88 @@ const Events = () => {
               <SelectItem value="beginner">Beginner</SelectItem>
               <SelectItem value="intermediate">Intermediate</SelectItem>
               <SelectItem value="advanced">Advanced</SelectItem>
-              <SelectItem value="all_levels">All Levels</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Events Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
-            <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              {event.image_url && (
-                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${event.image_url})` }} />
-              )}
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{event.title}</CardTitle>
-                    <CardDescription className="mt-1">
-                      Coach: {event.coaches?.profiles?.first_name} {event.coaches?.profiles?.last_name}
-                    </CardDescription>
+        {filteredEvents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredEvents.map((event) => (
+              <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate">{event.title}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {formatSportName(event.sport_category || event.sport_type)}
+                      </CardDescription>
+                    </div>
+                    {event.difficulty_level && (
+                      <Badge className={getDifficultyColor(event.difficulty_level)}>
+                        {event.difficulty_level}
+                      </Badge>
+                    )}
                   </div>
-                  <Badge className={`ml-2 ${getDifficultyColor(event.difficulty_level)}`}>
-                    {event.difficulty_level}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{format(new Date(event.start_time), 'MMM dd, yyyy')}</span>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span>{format(new Date(event.start_time), 'MMM dd, yyyy')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span>
+                        {format(new Date(event.start_time), 'h:mm a')} - {format(new Date(event.end_time), 'h:mm a')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{event.location}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span>{event.current_participants}/{event.max_participants} spots</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span>${event.cost}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {format(new Date(event.start_time), 'h:mm a')} - 
-                      {format(new Date(event.end_time), 'h:mm a')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span className="truncate">{event.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.current_participants}/{event.max_participants} participants</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span>${event.cost}</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <Badge variant="outline">
-                    Ages {event.age_min}-{event.age_max}
-                  </Badge>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.location.href = `/event/${event.id}`}
-                    >
-                      View Details
-                    </Button>
-                    <Button 
-                      onClick={() => handleRegister(event.id)}
-                      disabled={event.current_participants >= event.max_participants}
-                      size="sm"
-                    >
-                      {event.current_participants >= event.max_participants ? 'Full' : 'Register'}
-                    </Button>
+                  <div className="flex items-center justify-between pt-2">
+                    {(event.age_min || event.age_max) && (
+                      <Badge variant="outline" className="text-xs">
+                        Ages {event.age_min || '0'}-{event.age_max || '18'}
+                      </Badge>
+                    )}
+                    <div className="flex gap-2 ml-auto">
+                      <Link to={`/event/${event.id}`}>
+                        <Button variant="outline" size="sm">Details</Button>
+                      </Link>
+                      <Button 
+                        onClick={() => handleRegister(event.id)}
+                        disabled={event.current_participants >= event.max_participants || registering === event.id}
+                        size="sm"
+                      >
+                        {registering === event.id ? 'Registering...' : 
+                         event.current_participants >= event.max_participants ? 'Full' : 'Register'}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {filteredEvents.length === 0 && !loading && (
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
           <div className="text-center py-12">
+            <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-muted-foreground">No events found</h3>
             <p className="text-sm text-muted-foreground mt-2">
-              Try adjusting your search criteria or check back later for new events.
+              Try adjusting your filters or check back later.
             </p>
           </div>
         )}

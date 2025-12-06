@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Activity } from 'lucide-react';
 
 const Auth = () => {
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, user, loading, profile, getRoleBasedRedirect } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,18 +23,23 @@ const Auth = () => {
   const [location, setLocation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already authenticated
-  if (!loading && user) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Handle role-based redirect when user and profile are available
+  useEffect(() => {
+    if (!loading && user && profile) {
+      const redirectPath = getRoleBasedRedirect();
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, profile, loading, navigate, getRoleBasedRedirect]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     
     setIsSubmitting(true);
-    await signIn(email, password);
+    const { error } = await signIn(email, password);
     setIsSubmitting(false);
+    
+    // Navigation will be handled by useEffect when profile loads
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -44,20 +51,28 @@ const Auth = () => {
       return;
     }
 
+    if (password.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+
     setIsSubmitting(true);
     const userData = {
       first_name: firstName,
       last_name: lastName,
       role,
       phone,
-      date_of_birth: dateOfBirth,
+      date_of_birth: dateOfBirth || null,
       location
     };
 
     await signUp(email, password, userData);
     setIsSubmitting(false);
+    
+    // Navigation will be handled by useEffect when profile loads after auto-confirm
   };
 
+  // Show loading only briefly
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -69,10 +84,25 @@ const Auth = () => {
     );
   }
 
+  // If user is already logged in but profile hasn't loaded yet, wait
+  if (user && !profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Setting up your account...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            <Activity className="h-10 w-10 text-primary" />
+          </div>
           <h1 className="text-3xl font-bold text-foreground">Youth Sports Platform</h1>
           <p className="text-muted-foreground mt-2">Join the community and discover amazing sports opportunities</p>
         </div>
@@ -99,6 +129,7 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -110,6 +141,7 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      autoComplete="current-password"
                     />
                   </div>
                   <Button 
@@ -133,6 +165,7 @@ const Auth = () => {
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         required
+                        autoComplete="given-name"
                       />
                     </div>
                     <div className="space-y-2">
@@ -143,6 +176,7 @@ const Auth = () => {
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         required
+                        autoComplete="family-name"
                       />
                     </div>
                   </div>
@@ -171,22 +205,24 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      autoComplete="email"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="phone">Phone Number (Optional)</Label>
                     <Input
                       id="phone"
                       type="tel"
                       placeholder="(555) 123-4567"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
+                      autoComplete="tel"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="date-of-birth">Date of Birth</Label>
+                    <Label htmlFor="date-of-birth">Date of Birth (Optional)</Label>
                     <Input
                       id="date-of-birth"
                       type="date"
@@ -196,12 +232,13 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
+                    <Label htmlFor="location">Location (Optional)</Label>
                     <Input
                       id="location"
                       placeholder="City, State"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
+                      autoComplete="address-level2"
                     />
                   </div>
 
@@ -210,10 +247,12 @@ const Auth = () => {
                     <Input
                       id="signup-password"
                       type="password"
-                      placeholder="Create a strong password"
+                      placeholder="Create a strong password (min 6 chars)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      minLength={6}
+                      autoComplete="new-password"
                     />
                   </div>
 
@@ -226,6 +265,7 @@ const Auth = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
+                      autoComplete="new-password"
                     />
                   </div>
 
